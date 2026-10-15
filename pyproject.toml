@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "summit-scanner"
-version = "0.3.0"
+version = "0.4.0"
 description = "Summit - open-source web security testing platform (proxy, scanner, fuzzer) by Pennacle Security"
 readme = "README.md"
 requires-python = ">=3.10"

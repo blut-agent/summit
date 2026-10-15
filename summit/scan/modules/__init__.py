@@ -1,3 +1,5 @@
+from .cors_reflect import CorsReflectionCheck
+from .host_header import HostHeaderInjectionCheck
 from .open_redirect import OpenRedirectCheck
 from .path_traversal import PathTraversalCheck
 from .sqli import SqliBooleanCheck, SqliErrorCheck
@@ -9,6 +11,8 @@ ALL_CHECKS = [
     SqliBooleanCheck(),
     XssReflectCheck(),
     WafBypassCheck(),
+    HostHeaderInjectionCheck(),
+    CorsReflectionCheck(),
     OpenRedirectCheck(),
     PathTraversalCheck(),
 ]

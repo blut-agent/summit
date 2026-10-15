@@ -16,8 +16,10 @@ DEFAULT_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
-# Requests/urllib3 manage these themselves; forwarding stale values breaks uploads.
-_STRIPPED_HEADERS = ("host", "content-length")
+# Only Content-Length is stripped - requests manages it. Host is honored when
+# explicitly provided (repeater files, host-header-injection probes); requests
+# derives it from the URL otherwise.
+_STRIPPED_HEADERS = ("content-length",)
 
 
 class HttpClient:

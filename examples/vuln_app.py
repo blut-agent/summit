@@ -21,6 +21,9 @@ Seeded vulnerabilities:
     - broken link         summer-promo     (dead external domain, NXDOMAIN)
     - WAF, bypassable     /protected?token= (naive filter + double decoding)
     - CAPTCHA challenge   /login           (reCAPTCHA marker, reported not solved)
+    - resource takeover   /old-bucket      (404 + S3 NoSuchBucket signature)
+    - host header inject  /reset?user=     (reflects the Host header into a reset link)
+    - CORS reflection     /api?user=1      (reflects any Origin, credentials allowed)
     - missing security headers + version disclosure on every response
 
 The "partner" link (https://example.com) is a live negative control: a
@@ -46,6 +49,9 @@ PAGE = """<!doctype html>
   <li><a href="/file?name=notes.txt">file</a></li>
   <li><a href="/protected?token=demo">protected</a></li>
   <li><a href="/login">login</a></li>
+  <li><a href="/old-bucket">old-bucket</a></li>
+  <li><a href="/reset?user=demo">reset</a></li>
+  <li><a href="/api?user=1">api</a></li>
   <li><a href="https://summit-demo-dead.example/old-promo">summer promo</a></li>
   <li><a href="https://example.com/">partner</a></li>
 </ul>
@@ -175,6 +181,40 @@ class DemoHandler(BaseHTTPRequestHandler):
                 "<button type=\"submit\">Sign in</button></form></body></html>"
             )
             self._html(body)
+
+        elif path == "/old-bucket":
+            # Simulated decommissioned S3 bucket: the DNS still points here,
+            # the bucket behind it is gone. The classic takeover setup.
+            body = (
+                '<?xml version="1.0" encoding="UTF-8"?>\n'
+                "<Error><Code>NoSuchBucket</Code>"
+                "<Message>The specified bucket does not exist</Message></Error>"
+            )
+            self._html(body, status=404, extra_headers={"Content-Type": "application/xml"})
+
+        elif path == "/reset":
+            # Vulnerable: the reset link is built from the Host header, so
+            # whoever controls the header controls where the link points.
+            host_header = self.headers.get("Host", "localhost")
+            user = query.get("user", "")
+            self._html(
+                f"<html><body><p>Password reset for {user} sent: "
+                f"http://{host_header}/reset?token=abc123</p></body></html>"
+            )
+
+        elif path == "/api":
+            # Vulnerable: reflects an arbitrary Origin back into
+            # Access-Control-Allow-Origin, with credentials allowed.
+            origin = self.headers.get("Origin", "")
+            data = '{"user":"demo","email":"admin@demo.local"}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            if origin:
+                self.send_header("Access-Control-Allow-Origin", origin)
+                self.send_header("Access-Control-Allow-Credentials", "true")
+            self.send_header("Content-Length", str(len(data.encode())))
+            self.end_headers()
+            self.wfile.write(data.encode())
 
         elif path == "/redirect":
             # Vulnerable: unvalidated redirect target.

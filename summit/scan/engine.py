@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -69,13 +70,17 @@ class ScanEngine:
         self.elapsed = 0.0
         self.high_signal = 0
         self._seen: set[tuple[str, str, str]] = set()
+        # Worker threads add findings concurrently; the lock keeps the
+        # dedupe set and list consistent instead of relying on GIL luck.
+        self._add_lock = threading.Lock()
 
     def add(self, finding: Finding) -> None:
-        key = (finding.check_id, finding.url, finding.param)
-        if key in self._seen:
-            return
-        self._seen.add(key)
-        self.findings.append(finding)
+        with self._add_lock:
+            key = (finding.check_id, finding.url, finding.param)
+            if key in self._seen:
+                return
+            self._seen.add(key)
+            self.findings.append(finding)
 
     def _run_check(self, check: Check, point: InjectionPoint) -> list[Finding]:
         try:

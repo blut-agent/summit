@@ -4,6 +4,7 @@ import re
 
 from ..captcha import check_challenge
 from ..http.models import HttpResponse
+from ..takeover import check_takeover
 from ..waf import detect_waf
 from .core import Finding
 
@@ -226,6 +227,7 @@ def run_passive(response: HttpResponse) -> list[Finding]:
         check_emails,
         check_waf,
         check_challenge,
+        check_takeover,
     ):
         findings.extend(checker(response))
     return findings

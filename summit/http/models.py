@@ -63,6 +63,13 @@ class HttpRequest:
             body=self.body,
         )
 
+    def with_header(self, name: str, value: str) -> "HttpRequest":
+        """Return a copy with the given header set (Host included - requests
+        honors an explicit Host instead of deriving one from the URL)."""
+        headers = dict(self.headers)
+        headers[name] = value
+        return HttpRequest(method=self.method, url=self.url, headers=headers, body=self.body)
+
 
 @dataclass
 class HttpResponse:

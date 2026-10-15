@@ -10,11 +10,11 @@
   <img src="https://img.shields.io/badge/dependencies-requests%20only-8b949e" alt="one dependency">
 </p>
 
-<p align="center">Proxy, scanner, fuzzer, link-hijack detection, WAF analysis and recon orchestration in one scriptable CLI.<br>A small, honest cousin of ZAP and Burp - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
+<p align="center">Proxy, scanner, fuzzer, link-hijack detection, WAF analysis, takeover fingerprints and recon orchestration in one scriptable CLI.<br>A small, honest cousin of ZAP and Burp - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
 
 ---
 
-We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit is that tool. It is young (v0.3) and built in the open.
+We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit is that tool. It is young (v0.4) and built in the open.
 
 **Every claim on this page is reproduced by [`examples/evidence.py`](examples/evidence.py)** - it runs the demo target live, measures each feature, and prints PASS/FAIL with the real numbers. CI executes it on every push; a claim that stops holding fails the build.
 
@@ -40,19 +40,25 @@ We use Burp and ZAP every day. We also kept wanting three things they are not: a
 
 ## Proof, not promises
 
-Every feature is verified against [examples/vuln_app.py](examples/vuln_app.py) - a deliberately vulnerable local app with ten seeded issue classes, bound to 127.0.0.1 only. Below is a real v0.3.0 scan against it:
+Every feature is verified against [examples/vuln_app.py](examples/vuln_app.py) - a deliberately vulnerable local app with thirteen seeded issue classes, bound to 127.0.0.1 only. Below is a real v0.4.0 scan against it:
 
 <p align="center">
-  <img src="docs/assets/demo.png" alt="real summit v0.3.0 scan output against the local demo target" width="760">
+  <img src="docs/assets/demo.png" alt="real summit v0.4.0 scan output against the local demo target" width="760">
 </p>
 
 <details>
 <summary>Measured evidence (from <code>python examples/evidence.py</code>, not a mockup)</summary>
 
 ```text
-[PASS] full scan: 9 seeded check families detected, zero false positives
-       26 findings in 0.6s (78 requests), missing=none, control link flagged=no,
-       7 finding(s) carry confidence=confirmed
+[PASS] full scan: 12 seeded check families detected, zero false positives
+       37 findings in 0.7s (126 requests), missing=none, control link flagged=no,
+       11 finding(s) carry confidence=confirmed
+[PASS] resource takeover fingerprint detected on the target's own 404
+       Possible AWS S3 resource takeover | AWS S3: 'nosuchbucket'
+[PASS] host header injection: marker domain echoed back by the app
+       Host: summit-host-probe.example -> reflected (reset-link poisoning surface)
+[PASS] CORS reflects an arbitrary origin with credentials allowed
+       ACAO: https://summit-cors-probe.example; ACAC: true
 [PASS] WAF bypass: naive filter blocks, tampered payload lands decoded
        raw payload -> HTTP 403 (blocked); URL-encoded once -> HTTP 200,
        payload reflected decoded: True
@@ -61,13 +67,14 @@ Every feature is verified against [examples/vuln_app.py](examples/vuln_app.py) -
 [PASS] rate limiting: --rate 5 paces 12 requests to ~2.2s; unlimited runs free
        12 requests at rate 5 -> 2.20s (theoretical floor: 2.2s);
        12 requests unlimited -> 0.02s
-[PASS] concurrent engine: 8 workers finish faster than 1 (best of 3 each)
+[PASS] concurrency on a latency-bearing target: 8 workers vs serial
+       40 requests x 25ms latency: serial 1.46s -> parallel 0.18s (8.1x speedup)
 [PASS] smart prioritizer ranks known-injectable parameters first
        probing starts with: [('query', 'search?query=laptop'), ('id', 'user?id=1'), ...]
 [PASS] toolkit decodes JWT header/payload and states the signature is unverified
 [PASS] update check compares versions numerically (0.3 < 0.10)
 
-evidence summary: 8/8 claims verified
+evidence summary: 11/11 claims verified
 ```
 
 </details>
@@ -133,6 +140,18 @@ Summit fingerprints the WAF from tight signatures (Cloudflare, AWS WAF, Akamai, 
 ## CAPTCHA: detect, do not solve
 
 Summit detects reCAPTCHA, hCaptcha, Cloudflare Turnstile and challenge pages, reports exactly which one is in the way, and stops burning requests. Solving CAPTCHAs automatically is out of scope by design - that line does not move.
+
+## Resource takeover fingerprints
+
+New in v0.4. A 404 that answers with a provider's unclaimed-resource page is a takeover setup: the URL still works, the backing resource is gone. Summit fingerprints the classic ones - AWS S3 (`NoSuchBucket`), GitHub Pages, Heroku, Azure, Shopify, Fastly, Pantheon, Tumblr, Surge, Bitbucket - and reports **confirmed** findings with the reclaim instruction. Fingerprint-only by design: no DNS tricks, no active claiming, ever.
+
+## Host header injection
+
+New in v0.4. Applications that build absolute URLs from the Host header (password reset links, redirects) can be poisoned. The probe sets a marker domain as Host and reports only when it comes back - and only when it is absent from the baseline, so pre-existing content can never trigger it. Measured on the demo target: `Host: summit-host-probe.example -> reflected` in a reset link, `confirmed`.
+
+## CORS origin reflection
+
+New in v0.4. Beyond the wildcard+credentials pattern, the active probe sends `Origin: https://summit-cors-probe.example` and reports when the server reflects it into `Access-Control-Allow-Origin` with credentials allowed - the configuration that lets any website read authenticated responses. Measured: reflected, `confirmed`.
 
 ## Rate limiting, timeouts and retries
 
@@ -203,10 +222,13 @@ False positives waste your triage time. False negatives get clients breached. Su
 | Email exposure | passive | info | regex |
 | WAF fingerprint | passive | info | tight vendor signatures |
 | CAPTCHA / anti-bot challenge | passive | info | challenge markers, reported not solved |
+| Resource takeover signature | passive | high | provider unclaimed-resource page on 404 -> `confirmed` |
 | SQL injection, error-based | active | critical | fresh DB error vs baseline -> `confirmed` |
 | SQL injection, boolean-based | active | critical | response divergence -> `potential` |
 | Reflected XSS | active | high | canary + raw payload reflection -> `confirmed` |
 | WAF filter bypass | active | high | tampered payload lands decoded -> `confirmed` |
+| Host header injection | active | high | marker domain echoed vs baseline -> `confirmed` |
+| CORS origin reflection | active | high | arbitrary origin reflected + credentials -> `confirmed` |
 | Open redirect | active | medium | 3xx Location to probe host -> `confirmed` |
 | Path traversal | active | high | OS file indicators -> `confirmed` |
 | Link to dead domain (hijack) | linkcheck | high | DNS failure, verified twice -> `confirmed` |
@@ -228,7 +250,8 @@ False positives waste your triage time. False negatives get clients breached. Su
 | WAF detection + bypass probing | built in | partial | partial |
 | Rate limiting | built in, thread-safe | add-on | paid |
 | JWT/encoder toolkit | built in | add-on | built in |
-| Codebase you can audit in an afternoon | ~2.7k lines | large | closed source |
+| Takeover fingerprints, host header, CORS | built in | add-ons | add-ons |
+| Codebase you can audit in an afternoon | ~3.1k lines | large | closed source |
 | TLS-intercepting proxy | on the roadmap | yes | yes |
 
 We are not trying to replace either of them. Summit is the small tool you drop into a pipeline or onto a VPS box, and the codebase you can actually read line by line.
@@ -238,7 +261,7 @@ We are not trying to replace either of them. Summit is the small tool you drop i
 - [ ] TLS interception in the proxy (generated CA)
 - [ ] POST form and JSON body injection points
 - [ ] Authenticated scanning (cookies, headers)
-- [ ] Subdomain takeover fingerprints (CNAME + service signatures)
+- [ ] CNAME-level subdomain takeover (DNS resolution + service verification)
 - [ ] Plugin API for custom checks
 - [ ] Request interception UI
 

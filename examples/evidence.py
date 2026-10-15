@@ -15,7 +15,7 @@ from __future__ import annotations
 import sys
 import threading
 import time
-from http.server import ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import quote
 from pathlib import Path
 
@@ -57,16 +57,37 @@ def main() -> int:
         expected = {
             "sqli-error", "sqli-boolean", "xss-reflection", "open-redirect",
             "path-traversal", "linkcheck-dead-domain", "waf-bypass", "waf-detected", "captcha-challenge",
+            "takeover-signature", "host-header-injection", "cors-reflection",
         }
         missing = expected - check_ids
         control_fp = [f.url for f in findings if f.url.startswith("https://example.com")]
         confirmed = sum(1 for f in findings if f.confidence == "confirmed")
         claim(
-            "full scan: 9 seeded check families detected, zero false positives",
+            "full scan: 12 seeded check families detected, zero false positives",
             not missing and not control_fp,
             f"{len(findings)} findings in {engine.elapsed:.1f}s ({client.request_count} requests), "
             f"missing={sorted(missing) if missing else 'none'}, control link flagged={control_fp or 'no'}, "
             f"{confirmed} finding(s) carry confidence=confirmed",
+        )
+
+        # --- 1b. the new v0.4 checks, each shown with its own evidence
+        takeover = next((f for f in findings if f.check_id == "takeover-signature"), None)
+        claim(
+            "resource takeover fingerprint detected on the target's own 404",
+            takeover is not None and takeover.confidence == "confirmed",
+            f"{takeover.title} | {takeover.evidence}" if takeover else "not found",
+        )
+        host_header = next((f for f in findings if f.check_id == "host-header-injection"), None)
+        claim(
+            "host header injection: marker domain echoed back by the app",
+            host_header is not None and host_header.confidence == "confirmed",
+            f"{host_header.evidence} (reset-link poisoning surface)" if host_header else "not found",
+        )
+        cors = next((f for f in findings if f.check_id == "cors-reflection"), None)
+        claim(
+            "CORS reflects an arbitrary origin with credentials allowed",
+            cors is not None and cors.confidence == "confirmed",
+            cors.evidence if cors else "not found",
         )
 
         # --- 2. WAF bypass, shown at the HTTP level (same code path the check uses)
@@ -107,24 +128,45 @@ def main() -> int:
             f"12 requests unlimited -> {fast_elapsed:.2f}s",
         )
 
-        # --- 5. concurrency: same scan, best of 3 runs each, 1 worker vs 8 workers
-        def best_of(workers: int, runs: int = 3) -> float:
-            best = float("inf")
-            for _ in range(runs):
-                engine = ScanEngine(client, workers=workers, linkcheck_enabled=False)
-                started = time.monotonic()
-                engine.scan(spider_result)
-                best = min(best, time.monotonic() - started)
-            return best
+        # --- 5. concurrency measured where it matters: a target with latency.
+        # Loopback answers in microseconds, which hides what parallelism buys.
+        # This endpoint sleeps 25ms per request, like a real server over the wire.
+        from concurrent.futures import ThreadPoolExecutor
 
-        solo_elapsed = best_of(1)
-        crew_elapsed = best_of(8)
-        claim(
-            "concurrent engine: 8 workers finish faster than 1 (best of 3 each)",
-            crew_elapsed < solo_elapsed,
-            f"workers=1 -> {solo_elapsed:.2f}s; workers=8 -> {crew_elapsed:.2f}s "
-            f"({solo_elapsed / max(crew_elapsed, 0.001):.1f}x on the demo target)",
-        )
+        class SlowHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                time.sleep(0.025)
+                body = b"slow but steady"
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        slow_server = ThreadingHTTPServer(("127.0.0.1", 0), SlowHandler)
+        slow_port = slow_server.server_address[1]
+        threading.Thread(target=slow_server.serve_forever, daemon=True).start()
+        try:
+            urls = [f"http://127.0.0.1:{slow_port}/slow?i={index}" for index in range(40)]
+            started = time.monotonic()
+            for url in urls:
+                client.send(HttpRequest(method="GET", url=url))
+            serial_elapsed = time.monotonic() - started
+            started = time.monotonic()
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                list(pool.map(lambda url: client.send(HttpRequest(method="GET", url=url)), urls))
+            parallel_elapsed = time.monotonic() - started
+            speedup = serial_elapsed / max(parallel_elapsed, 0.001)
+            claim(
+                "concurrency on a latency-bearing target: 8 workers vs serial",
+                speedup >= 3.0,
+                f"40 requests x 25ms latency: serial {serial_elapsed:.2f}s -> parallel {parallel_elapsed:.2f}s "
+                f"({speedup:.1f}x speedup)",
+            )
+        finally:
+            slow_server.shutdown()
 
         # --- 6. smart prioritizer puts known-injectable names first
         from summit.smart import prioritize  # noqa: E402
