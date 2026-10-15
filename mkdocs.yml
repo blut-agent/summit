@@ -1,0 +1,36 @@
+site_name: summit
+site_description: >-
+  Open-source web security testing platform: proxy, scanner, fuzzer, WAF
+  analysis and recon orchestration in one scriptable CLI.
+site_url: https://pennacle-security.github.io/summit/
+repo_url: https://github.com/pennacle-security/summit
+repo_name: pennacle-security/summit
+copyright: Pennacle Security · MIT · authorized testing only
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: blue grey
+    accent: light blue
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+  icon:
+    logo: material/shield-search
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Usage: usage.md
+  - Checks: checks.md
+  - Architecture: architecture.md
+  - Security policy: security.md
+  - Contributing: contributing.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - tables

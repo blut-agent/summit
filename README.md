@@ -5,6 +5,8 @@
 <p align="center">
   <a href="https://github.com/pennacle-security/summit/actions/workflows/tests.yml"><img src="https://github.com/pennacle-security/summit/actions/workflows/tests.yml/badge.svg" alt="CI status"></a>
   <a href="https://github.com/pennacle-security/summit/releases"><img src="https://img.shields.io/github/v/tag/pennacle-security/summit?label=release&color=2ea44f" alt="release"></a>
+  <a href="https://api.scorecard.dev/projects/github.com/pennacle-security/summit/badge"><img src="https://api.scorecard.dev/projects/github.com/pennacle-security/summit/badge" alt="OpenSSF Scorecard"></a>
+  <a href="https://pennacle-security.github.io/summit/"><img src="https://img.shields.io/badge/docs-live-2ea44f" alt="docs"></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-3776ab" alt="python 3.10+">
   <img src="https://img.shields.io/github/license/pennacle-security/summit?color=8b949e" alt="MIT license">
   <img src="https://img.shields.io/badge/dependencies-requests%20only-8b949e" alt="one dependency">
@@ -17,6 +19,8 @@
 We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit is that tool. It is young (v0.4) and built in the open.
 
 **Every claim on this page is reproduced by [`examples/evidence.py`](examples/evidence.py)** - it runs the demo target live, measures each feature, and prints PASS/FAIL with the real numbers. CI executes it on every push; a claim that stops holding fails the build.
+
+**Full documentation:** [pennacle-security.github.io/summit](https://pennacle-security.github.io/summit/)
 
 ## Contents
 

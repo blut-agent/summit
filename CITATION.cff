@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+title: "summit: open-source web security testing platform"
+message: >-
+  If you use summit in your research or in a paper, please cite the
+  project repository.
+type: software
+authors:
+  - alias: pennacle-security
+    name: Pennacle Security
+    website: "https://github.com/pennacle-security"
+repository-code: "https://github.com/pennacle-security/summit"
+url: "https://github.com/pennacle-security/summit"
+abstract: >-
+  summit is a scriptable command-line platform for authorized web security
+  testing: an intercepting HTTP proxy, a crawler-driven scanner with
+  confidence-labelled findings, a directory fuzzer, WAF fingerprinting and
+  bypass probing, broken-link hijack detection, resource takeover
+  fingerprints, and recon orchestration for subfinder, httpx and nmap.
+keywords:
+  - web-security
+  - scanner
+  - pentest
+  - proxy
+  - fuzzer
+license: MIT
+version: v0.4.0
+date-released: "2026-10-15"
