@@ -9,3 +9,5 @@ build/
 .DS_Store
 report.json
 report.html
+demo_output.txt
+demo.json

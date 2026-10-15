@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="summit" width="760">
+  <img src="docs/assets/banner.png" alt="summit" width="760">
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@ We use Burp and ZAP every day. We also kept wanting three things they are not: a
 Every feature claim here is verified against [examples/vuln_app.py](examples/vuln_app.py) - a deliberately vulnerable local app with six seeded issue classes, no internet access, bound to 127.0.0.1 only. Below is a real scan against it (not a mockup):
 
 <p align="center">
-  <img src="docs/assets/demo.svg" alt="real summit scan output against the local demo target" width="760">
+  <img src="docs/assets/demo.png" alt="real summit scan output against the local demo target" width="760">
 </p>
 
 <details>
