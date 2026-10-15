@@ -20,7 +20,7 @@ INDICATORS = [
 
 class PathTraversalCheck(Check):
     check_id = "path-traversal"
-    title = "Path traversal (potential)"
+    title = "Path traversal"
     severity = "high"
 
     def run(self, point: InjectionPoint, client: HttpClient) -> list[Finding]:
@@ -36,6 +36,7 @@ class PathTraversalCheck(Check):
                             severity=self.severity,
                             url=point.request.url,
                             param=point.param,
+                            confidence="confirmed",
                             detail=f"Parameter '{point.param}' returned file contents when given {payload!r}.",
                             evidence=indicator,
                             remediation="Canonicalize and whitelist allowed file paths; never pass user input to filesystem APIs.",

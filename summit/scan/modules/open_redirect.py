@@ -17,7 +17,7 @@ _URL_PARAM_HINTS = ("url", "redirect", "next", "return", "goto", "link", "target
 
 class OpenRedirectCheck(Check):
     check_id = "open-redirect"
-    title = "Open redirect (potential)"
+    title = "Open redirect"
     severity = "medium"
 
     def _is_url_like(self, point: InjectionPoint) -> bool:
@@ -41,6 +41,7 @@ class OpenRedirectCheck(Check):
                         severity=self.severity,
                         url=point.request.url,
                         param=point.param,
+                        confidence="confirmed",
                         detail=f"Parameter '{point.param}' causes a redirect to an external host.",
                         evidence=f"Location: {response.header('location')}",
                         remediation="Validate redirect targets against a server-side allowlist.",
@@ -56,6 +57,7 @@ class OpenRedirectCheck(Check):
                             severity=self.severity,
                             url=point.request.url,
                             param=point.param,
+                            confidence="potential",
                             detail=f"Parameter '{point.param}' is reflected into a client-side redirect construct.",
                             evidence=REDIRECT_TARGET,
                             remediation="Validate redirect targets against a server-side allowlist.",

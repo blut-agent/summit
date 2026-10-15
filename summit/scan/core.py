@@ -18,6 +18,9 @@ class Finding:
     detail: str = ""
     evidence: str = ""
     remediation: str = ""
+    # "confirmed" = observed fact (raw reflection, file content, fresh DB
+    # error, 3xx Location). "potential" = heuristic signal.
+    confidence: str = "potential"
 
     def as_dict(self) -> dict:
         return {
@@ -29,6 +32,7 @@ class Finding:
             "detail": self.detail,
             "evidence": self.evidence[:400],
             "remediation": self.remediation,
+            "confidence": self.confidence,
         }
 
 

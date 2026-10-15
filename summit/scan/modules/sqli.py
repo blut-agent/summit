@@ -14,7 +14,7 @@ ERROR_SIGNATURES = {
 
 class SqliErrorCheck(Check):
     check_id = "sqli-error"
-    title = "SQL injection (error-based, potential)"
+    title = "SQL injection (error-based)"
     severity = "critical"
 
     PROBES = ["'", '"', "')", "1' OR '1'='1"]
@@ -34,6 +34,7 @@ class SqliErrorCheck(Check):
                                 severity=self.severity,
                                 url=point.request.url,
                                 param=point.param,
+                                confidence="confirmed",
                                 detail=f"Parameter '{point.param}' triggered a {db} error when the value was appended with {probe!r}.",
                                 evidence=signature,
                                 remediation="Use parameterized queries / prepared statements. Never concatenate user input into SQL.",
@@ -67,6 +68,7 @@ class SqliBooleanCheck(Check):
                     severity=self.severity,
                     url=point.request.url,
                     param=point.param,
+                    confidence="potential",
                     detail=(
                         f"Numeric parameter '{point.param}' returns different response sizes for "
                         f"'{original} AND 1=1' vs '{original} AND 1=2' while matching the baseline otherwise. "

@@ -36,7 +36,8 @@ def write_console(findings, target: str) -> str:
         if finding.severity != current_severity:
             current_severity = finding.severity
             lines.append(f"[{current_severity.upper()}]")
-        lines.append(f"  {finding.title}  ({finding.check_id})")
+        confidence_tag = "" if finding.confidence == "potential" else f"  [{finding.confidence}]"
+        lines.append(f"  {finding.title}  ({finding.check_id}){confidence_tag}")
         location = finding.url + (f"  param: {finding.param}" if finding.param else "")
         lines.append(f"    URL: {location}")
         if finding.evidence:
@@ -54,7 +55,7 @@ def write_html(findings, path: str, target: str) -> str:
             f"<td><span class='sev' style='background:{color}'>{html.escape(finding.severity.upper())}</span></td>"
             f"<td>{html.escape(finding.title)}</td>"
             f"<td class='url'>{html.escape(finding.url)}</td>"
-            f"<td>{html.escape(finding.check_id)}</td>"
+            f"<td>{html.escape(finding.check_id)}<br><small>{html.escape(finding.confidence)}</small></td>"
             "</tr>"
         )
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
