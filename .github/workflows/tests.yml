@@ -10,3 +10,20 @@ jobs:
           python-version: "3.12"
       - run: pip install -e . pytest
       - run: pytest -q
+      - name: demo scan smoke test (detection must keep finding the seeded issues)
+        run: |
+          python examples/vuln_app.py &
+          APP_PID=$!
+          sleep 2
+          summit scan http://127.0.0.1:8765 --depth 1 --max-pages 10 --json demo.json
+          kill $APP_PID
+          python - <<'EOF'
+          import json
+          data = json.load(open("demo.json"))
+          total = data["total"]
+          check_ids = {finding["check_id"] for finding in data["findings"]}
+          expected = {"sqli-error", "sqli-boolean", "xss-reflection", "open-redirect", "path-traversal"}
+          missing = expected - check_ids
+          assert not missing, f"demo scan missed seeded checks: {missing}"
+          print(f"demo scan OK: {total} findings, all seeded checks detected")
+          EOF

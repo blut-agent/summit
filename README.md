@@ -86,7 +86,7 @@ Run it yourself in two terminals:
     python examples/vuln_app.py             # terminal 1
     summit scan http://127.0.0.1:8765       # terminal 2
 
-If a seeded issue ever stops being found, that is a bug and we want the [report](https://github.com/pennacle-security/summit/issues/new?template=bug_report.yml). The test suite runs on every push.
+If a seeded issue ever stops being found, CI fails - the demo scan runs as a smoke test on every push, so a silent regression cannot slip in. Found something wrong anyway? [Report it](https://github.com/pennacle-security/summit/issues/new?template=bug_report.yml).
 
 ## Install
 
