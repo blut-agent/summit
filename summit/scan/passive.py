@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import re
 
+from ..captcha import check_challenge
 from ..http.models import HttpResponse
+from ..waf import detect_waf
 from .core import Finding
 
 SECURITY_HEADERS = [
@@ -193,6 +195,26 @@ def check_emails(response: HttpResponse) -> list[Finding]:
     return []
 
 
+def check_waf(response: HttpResponse) -> list[Finding]:
+    detected = detect_waf(response)
+    if not detected:
+        return []
+    name, evidence = detected
+    return [
+        Finding(
+            check_id="waf-detected",
+            title=f"WAF detected: {name}",
+            severity="info",
+            url=response.request.url,
+            detail=(
+                "The target sits behind a WAF. Summit adapts: blocked probes are retried "
+                "with tamper variants (see the waf-bypass check)."
+            ),
+            evidence=evidence,
+        )
+    ]
+
+
 def run_passive(response: HttpResponse) -> list[Finding]:
     findings: list[Finding] = []
     for checker in (
@@ -202,6 +224,8 @@ def run_passive(response: HttpResponse) -> list[Finding]:
         check_server_disclosure,
         check_cors,
         check_emails,
+        check_waf,
+        check_challenge,
     ):
         findings.extend(checker(response))
     return findings

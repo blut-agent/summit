@@ -19,6 +19,8 @@ Seeded vulnerabilities:
     - open redirect       /redirect?url=   (unvalidated 302)
     - path traversal      /file?name=      (virtual filesystem read)
     - broken link         summer-promo     (dead external domain, NXDOMAIN)
+    - WAF, bypassable     /protected?token= (naive filter + double decoding)
+    - CAPTCHA challenge   /login           (reCAPTCHA marker, reported not solved)
     - missing security headers + version disclosure on every response
 
 The "partner" link (https://example.com) is a live negative control: a
@@ -28,7 +30,7 @@ healthy outbound link (HTTP 200) must NOT be reported.
 import sqlite3
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 PORT = 8765
 
@@ -42,6 +44,8 @@ PAGE = """<!doctype html>
   <li><a href="/user?id=1">user</a></li>
   <li><a href="/redirect?url=https://example.com">redirect</a></li>
   <li><a href="/file?name=notes.txt">file</a></li>
+  <li><a href="/protected?token=demo">protected</a></li>
+  <li><a href="/login">login</a></li>
   <li><a href="https://summit-demo-dead.example/old-promo">summer promo</a></li>
   <li><a href="https://example.com/">partner</a></li>
 </ul>
@@ -81,11 +85,13 @@ class DemoHandler(BaseHTTPRequestHandler):
     server_version = "DemoShop/1.0"  # chatty Server header on purpose
     protocol_version = "HTTP/1.1"
 
-    def _html(self, body: str, status: int = 200) -> None:
+    def _html(self, body: str, status: int = 200, extra_headers: dict | None = None) -> None:
         data = body.encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(data)
 
@@ -129,6 +135,46 @@ class DemoHandler(BaseHTTPRequestHandler):
                 for row in rows
             )
             self._html(f"<html><body>{blocks}</body></html>")
+
+        elif path == "/protected":
+            token = query.get("token", "")
+            # Simulated WAF: it inspects the parameter as the request carries it
+            # (no extra decoding - real WAFs sit in front of the app) and blocks
+            # tag / quote injection markers. Note the app behind it decodes one
+            # layer more than the filter ever looks at - that mismatch is the
+            # whole vulnerability.
+            inspected = token.lower()
+            if "<svg" in inspected or "<script" in inspected or "'" in inspected:
+                body = "<html><body><h1>403 Forbidden</h1><p>Request blocked. ModSecurity.</p></body></html>"
+                data = body.encode("utf-8")
+                self.send_response(403)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Server", "DemoShop/1.0 Mod_Security/2.9")
+                self.end_headers()
+                self.wfile.write(data)
+                return
+            # The layer behind the WAF decodes one more time than the filter
+            # does - exactly that mismatch is the vulnerability.
+            decoded = unquote(token)
+            self._html(
+                f"<html><body><p>Access for {decoded} granted.</p></body></html>",
+                extra_headers={"Server": "DemoShop/1.0 Mod_Security/2.9"},
+            )
+
+        elif path == "/login":
+            # Simulated login page behind a CAPTCHA. Summit reports the
+            # challenge; solving it is a human's job.
+            body = (
+                "<html><head>"
+                "<script src=\"https://www.google.com/recaptcha/api.js\"></script>"
+                "</head><body><h1>Sign in</h1>"
+                "<form method=\"POST\" action=\"/login\">"
+                "<input type=\"text\" name=\"user\"><input type=\"password\" name=\"pass\">"
+                "<div class=\"g-recaptcha\" data-sitekey=\"demo\"></div>"
+                "<button type=\"submit\">Sign in</button></form></body></html>"
+            )
+            self._html(body)
 
         elif path == "/redirect":
             # Vulnerable: unvalidated redirect target.

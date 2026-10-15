@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ..http.client import HttpClient
 from ..http.models import HttpResponse
+from ..smart import prioritize, score_point
 from .core import Check, Finding, InjectionPoint
 from .linkcheck import check_links
 from .modules import ALL_CHECKS
@@ -66,6 +67,7 @@ class ScanEngine:
         self.findings: list[Finding] = []
         self.errors: list[str] = []
         self.elapsed = 0.0
+        self.high_signal = 0
         self._seen: set[tuple[str, str, str]] = set()
 
     def add(self, finding: Finding) -> None:
@@ -91,7 +93,10 @@ class ScanEngine:
                 self.add(finding)
 
         if self.active:
-            targets = build_targets(spider_result)
+            # The prioritizer orders high-signal parameters first, so the
+            # interesting findings show up early in the report stream.
+            targets = prioritize(build_targets(spider_result))
+            self.high_signal = sum(1 for point in targets if score_point(point) >= 2)
             tasks = [(check, point) for check in self.checks for point in targets]
             if tasks:
                 with ThreadPoolExecutor(max_workers=self.workers) as pool:
