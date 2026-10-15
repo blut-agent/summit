@@ -173,7 +173,10 @@ def check_cors(response: HttpResponse) -> list[Finding]:
                 title="CORS policy sets wildcard origin with credentials",
                 severity="low",
                 url=response.request.url,
-                detail="Access-Control-Allow-Origin is '*' while Access-Control-Allow-Credentials is true. Browsers reject this combination, but it signals a misconfigured CORS policy.",
+                detail=(
+                    "Access-Control-Allow-Origin is '*' while Access-Control-Allow-Credentials is true. "
+                    "Browsers reject this combination, but it signals a misconfigured CORS policy."
+                ),
                 remediation="Reflect a whitelist of trusted origins instead of '*'.",
             )
         ]

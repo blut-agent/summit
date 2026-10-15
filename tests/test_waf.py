@@ -83,7 +83,6 @@ def test_rate_limiter_zero_interval_never_sleeps():
 # --- smart prioritizer ---
 
 def test_named_param_scores_higher_than_unknown():
-    request = HttpRequest(method="GET", url="http://x.local/?id=1&zzz=1")
     points = sorted([make_point("zzz", "1"), make_point("id", "1")], key=score_point, reverse=True)
     assert points[0].param == "id"
     assert score_point(make_point("url", "https://x")) == 3

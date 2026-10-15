@@ -123,16 +123,25 @@ def install_tools() -> None:
                 if not shutil.which(manager):
                     continue
                 if sys.platform == "win32" and manager == "winget":
-                    print(f"[*] installing nmap via winget ...")
+                    print("[*] installing nmap via winget ...")
                     try:
-                        result = _run_quiet([manager, "install", "--id", _WINGET_IDS["nmap"], "--accept-source-agreements", "--accept-package-agreements", "--silent"])
+                        result = _run_quiet([
+                            manager, "install", "--id", _WINGET_IDS["nmap"],
+                            "--accept-source-agreements", "--accept-package-agreements", "--silent",
+                        ])
                         installed = result.returncode == 0
                     except (OSError, subprocess.TimeoutExpired) as exc:
                         print(f"    winget failed: {exc}")
                 else:
                     print(f"[*] trying: {packages['nmap']}")
                     try:
-                        result = _run_quiet(manager.split() + ["install", "-y", "nmap"] if manager == "choco" else ["sudo", "-n"] + packages["nmap"].split() if manager == "apt" else packages["nmap"].split())
+                        if manager == "choco":
+                            command = manager.split() + ["install", "-y", "nmap"]
+                        elif manager == "apt":
+                            command = ["sudo", "-n"] + packages["nmap"].split()
+                        else:
+                            command = packages["nmap"].split()
+                        result = _run_quiet(command)
                         installed = result.returncode == 0
                     except (OSError, subprocess.TimeoutExpired) as exc:
                         print(f"    {manager} failed: {exc}")
@@ -142,5 +151,5 @@ def install_tools() -> None:
         if installed and shutil.which(name):
             print(f"[*] {name}: installed -> {shutil.which(name)}")
         elif name == "nmap":
-            print(f"[!] nmap: install it with e.g. winget install --id Insecure.Nmap (Windows) or sudo apt install -y nmap (Linux)")
+            print("[!] nmap: install it with e.g. winget install --id Insecure.Nmap (Windows) or sudo apt install -y nmap (Linux)")
         # Go-tool hints were already printed above when go was unavailable.

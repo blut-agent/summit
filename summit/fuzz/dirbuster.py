@@ -66,7 +66,13 @@ def fuzz(
                 continue
             if response.status == 404:
                 continue
-            if wildcard_status is not None and response.status == wildcard_status and wildcard_len is not None and abs(len(response.body) - wildcard_len) < 20:
+            is_wildcard = (
+                wildcard_status is not None
+                and response.status == wildcard_status
+                and wildcard_len is not None
+                and abs(len(response.body) - wildcard_len) < 20
+            )
+            if is_wildcard:
                 continue
             name = url[len(base):]
             findings.append(

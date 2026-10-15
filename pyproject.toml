@@ -17,3 +17,14 @@ summit = "summit.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["summit*"]
+
+[tool.ruff]
+line-length = 150
+target-version = "py310"
+
+[tool.ruff.lint]
+# The "warnings" set: pycodestyle errors/warnings + pyflakes.
+select = ["E", "F", "W"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["summit"]
