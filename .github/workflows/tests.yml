@@ -25,8 +25,10 @@ jobs:
           expected = {"sqli-error", "sqli-boolean", "xss-reflection", "open-redirect", "path-traversal", "linkcheck-dead-domain"}
           missing = expected - check_ids
           assert not missing, f"demo scan missed seeded checks: {missing}"
-          # negative control: the healthy example.com link must NOT be flagged
-          fp = [f["url"] for f in data["findings"] if "example.com" in f["url"] and f["check_id"] != "linkcheck-dead-domain"]
+          # negative control: the healthy https://example.com link itself must NOT
+          # be flagged (match the link exactly - the open-redirect finding's URL
+          # legitimately contains "example.com" as a parameter value)
+          fp = [f["url"] for f in data["findings"] if f["url"].startswith("https://example.com")]
           assert not fp, f"false positives on the healthy control link: {fp}"
           print(f"demo scan OK: {total} findings, all seeded checks detected, zero false positives")
           EOF
