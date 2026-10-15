@@ -15,15 +15,18 @@ jobs:
           python examples/vuln_app.py &
           APP_PID=$!
           sleep 2
-          summit scan http://127.0.0.1:8765 --depth 1 --max-pages 10 --json demo.json
+          summit scan http://127.0.0.1:8765 --depth 1 --max-pages 10 --workers 8 --json demo.json
           kill $APP_PID
           python - <<'EOF'
           import json
           data = json.load(open("demo.json"))
           total = data["total"]
           check_ids = {finding["check_id"] for finding in data["findings"]}
-          expected = {"sqli-error", "sqli-boolean", "xss-reflection", "open-redirect", "path-traversal"}
+          expected = {"sqli-error", "sqli-boolean", "xss-reflection", "open-redirect", "path-traversal", "linkcheck-dead-domain"}
           missing = expected - check_ids
           assert not missing, f"demo scan missed seeded checks: {missing}"
-          print(f"demo scan OK: {total} findings, all seeded checks detected")
+          # negative control: the healthy example.com link must NOT be flagged
+          fp = [f["url"] for f in data["findings"] if "example.com" in f["url"] and f["check_id"] != "linkcheck-dead-domain"]
+          assert not fp, f"false positives on the healthy control link: {fp}"
+          print(f"demo scan OK: {total} findings, all seeded checks detected, zero false positives")
           EOF
