@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 
 import requests
@@ -31,6 +32,8 @@ class HttpClient:
         self.timeout = timeout
         self.verify_tls = verify_tls
         self.delay = delay
+        self.request_count = 0
+        self._count_lock = threading.Lock()
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
         if user_agent:
@@ -40,6 +43,8 @@ class HttpClient:
         if self.delay:
             time.sleep(self.delay)
         started = time.monotonic()
+        with self._count_lock:
+            self.request_count += 1
         response = self.session.request(
             request.method,
             request.url,

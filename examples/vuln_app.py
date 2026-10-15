@@ -18,7 +18,11 @@ Seeded vulnerabilities:
     - SQLi, boolean-based /user?id=        (true/false response divergence)
     - open redirect       /redirect?url=   (unvalidated 302)
     - path traversal      /file?name=      (virtual filesystem read)
+    - broken link         summer-promo     (dead external domain, NXDOMAIN)
     - missing security headers + version disclosure on every response
+
+The "partner" link (https://example.com) is a live negative control: a
+healthy outbound link (HTTP 200) must NOT be reported.
 """
 
 import sqlite3
@@ -38,6 +42,8 @@ PAGE = """<!doctype html>
   <li><a href="/user?id=1">user</a></li>
   <li><a href="/redirect?url=https://example.com">redirect</a></li>
   <li><a href="/file?name=notes.txt">file</a></li>
+  <li><a href="https://summit-demo-dead.example/old-promo">summer promo</a></li>
+  <li><a href="https://example.com/">partner</a></li>
 </ul>
 </body></html>"""
 

@@ -34,6 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--depth", type=int, default=3, help="max crawl depth (default 3)")
     scan.add_argument("--max-pages", type=int, default=50, help="max pages to visit (default 50)")
     scan.add_argument("--no-active", action="store_true", help="skip active checks (passive only)")
+    scan.add_argument("--skip-linkcheck", action="store_true", help="skip broken link / hijack check")
+    scan.add_argument("--workers", type=int, default=8, help="parallel check workers (default 8)")
     scan.add_argument("--delay", type=float, default=0.0, help="seconds between requests (be nice)")
     scan.add_argument("--timeout", type=float, default=10.0, help="request timeout in seconds")
     scan.add_argument("--json", dest="json_path", help="write a JSON report to this path")
@@ -69,8 +71,17 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     for error in result["errors"][:5]:
         print(f"[!] {error}")
 
-    engine = ScanEngine(client, active=not args.no_active)
+    engine = ScanEngine(
+        client,
+        active=not args.no_active,
+        workers=args.workers,
+        linkcheck_enabled=not args.skip_linkcheck,
+    )
     findings = engine.scan(result)
+    print(
+        f"[*] {client.request_count} request(s) in {engine.elapsed:.1f}s "
+        f"(workers={args.workers})"
+    )
     for error in engine.errors[:5]:
         print(f"[!] check error: {error}")
     print(write_console(findings, args.url))

@@ -81,6 +81,7 @@ class Spider:
         pages: list[HttpResponse] = []
         forms: list[dict] = []
         errors: list[str] = []
+        external_links: set[str] = set()
 
         while queue and len(visited) < self.max_pages:
             url, depth = queue.popleft()
@@ -106,8 +107,12 @@ class Spider:
             base = response.request.url
             for link in extractor.urls:
                 absolute = urljoin(base, link)
-                if absolute.startswith(("http://", "https://")) and self.in_scope(absolute):
+                if not absolute.startswith(("http://", "https://")):
+                    continue
+                if self.in_scope(absolute):
                     queue.append((absolute, depth + 1))
+                else:
+                    external_links.add(absolute.split("#", 1)[0])
             for form in extractor.forms:
                 action = urljoin(base, form["action"] or clean)
                 fields: dict[str, str] = {}
@@ -120,4 +125,10 @@ class Spider:
                     queue.append((f"{action}?{query}" if query else action, depth + 1))
                 forms.append({"action": action, "method": form["method"], "fields": fields})
 
-        return {"pages": pages, "forms": forms, "visited": sorted(visited), "errors": errors}
+        return {
+            "pages": pages,
+            "forms": forms,
+            "visited": sorted(visited),
+            "external_links": sorted(external_links),
+            "errors": errors,
+        }
