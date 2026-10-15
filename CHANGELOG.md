@@ -1,0 +1,84 @@
+# Changelog
+
+All notable changes to summit are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
+[Semantic Versioning](https://semver.org/).
+
+## [v0.4.0] - 2026-10-15
+
+### Added
+
+- Resource takeover fingerprints (passive): AWS S3 (`NoSuchBucket`), GitHub Pages,
+  Heroku, Azure, Shopify, Fastly, Pantheon, Tumblr, Surge, Bitbucket - reported
+  `confirmed` with reclaim instructions. Fingerprint-only by design: no DNS
+  tricks, no active claiming.
+- Host header injection check (active): marker-domain probe, reported only when
+  echoed back and absent from the baseline.
+- CORS origin-reflection check (active): detects servers that reflect an
+  arbitrary `Origin` into `Access-Control-Allow-Origin` with credentials allowed.
+- OpenSSF Security Insights file, CITATION.cff, and a MkDocs documentation site
+  (https://pennacle-security.github.io/summit/).
+
+### Changed
+
+- Finding dedupe inside the engine is now explicitly locked instead of relying
+  on GIL behavior.
+- The concurrency claim is measured against a latency-bearing target
+  (25 ms/request): serial 1.46s -> parallel 0.18s, 8.1x.
+- Host headers from repeater request files are honored instead of stripped.
+
+### Security
+
+- All GitHub Actions are pinned to full commit SHAs; CodeQL (Python) and
+  OpenSSF Scorecard run in CI; Dependabot watches pip and action dependencies.
+
+## [v0.3.0] - 2026-10-15
+
+### Added
+
+- WAF fingerprinting (Cloudflare, AWS WAF, Akamai, Imperva, ModSecurity, Sucuri,
+  F5, Wordfence) with bypass probing: tamper variants (single/double URL-encoding,
+  comment splitting, case alternation) - a bypass is reported only when the
+  original payload lands decoded in the response.
+- CAPTCHA / anti-bot challenge detection (reCAPTCHA, hCaptcha, Turnstile).
+  Summit reports the challenge; it does not solve it.
+- `--rate` (thread-safe requests-per-second ceiling), `--timeout`, `--retries`
+  with `Retry-After` support.
+- `summit recon`: chains subfinder -> httpx -> nmap with defensive parsing,
+  caps against passive-DNS noise, and honest failure notes.
+- `summit encode` / `summit decode`: base64, URL, hex and JWT (decoding only,
+  with an explicit "signature NOT verified" note).
+- `--check-update`, `--auto-update`, `--install-tools`.
+- Smart probe prioritizer: transparent scoring model orders high-signal
+  parameters first.
+- `examples/evidence.py`: reproduces every README claim with measured numbers;
+  runs in CI.
+
+## [v0.2.0] - 2026-10-15
+
+### Added
+
+- Broken link hijacking check: the spider records every outbound link, the
+  engine verifies each unique one. Dead domains (DNS verified twice), parked
+  domains (tight fingerprints), broken links (404/410), unreachable hosts, and
+  private-target links (recorded, never fetched - SSRF guard).
+- Confidence labels on every finding: `confirmed` (observed fact) vs
+  `potential` (heuristic).
+- Concurrent scan engine (`--workers`), tracker/opaque parameter filter, and
+  honest request-count/wall-clock output.
+- Local deliberately-vulnerable demo target (`examples/vuln_app.py`) with a
+  healthy negative control link.
+- CI smoke test: seeded detections must fire and the control link must stay
+  unreported on every push.
+
+## [v0.1.0] - 2026-10-15
+
+### Added
+
+- First public release.
+- CLI: `scan` / `fuzz` / `proxy` / `repeater`.
+- Passive checks: security headers, cookie flags, error and stack-trace leaks,
+  CORS, version disclosure, email exposure.
+- Active checks: SQL injection (error-based + boolean-based), reflected XSS
+  (two-stage canary), open redirect, path traversal.
+- JSON and HTML reports.
