@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "summit-scanner"
+version = "0.1.0"
+description = "Summit - open-source web security testing platform (proxy, scanner, fuzzer) by Pennacle Security"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Pennacle Security" }]
+dependencies = ["requests>=2.31"]
+
+[project.scripts]
+summit = "summit.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["summit*"]
