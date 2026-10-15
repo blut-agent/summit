@@ -35,3 +35,7 @@ Findings carry **confidence labels**: `confirmed` means an observed fact, `poten
 ## Legal
 
 Authorized testing only: your own systems, or systems you have written permission to test. We are not responsible for misuse.
+
+## Release history
+
+See the [changelog](https://github.com/pennacle-security/summit/blob/main/CHANGELOG.md) for what shipped in each version.
