@@ -265,6 +265,28 @@ We are not trying to replace either of them. Summit is the small tool you drop i
 - [ ] Plugin API for custom checks
 - [ ] Request interception UI
 
+## Community & contributors
+
+A repository that helps people back grows through word-of-mouth. So we put our money where our issues are:
+
+- **Questions** -> [Q&A discussion](https://github.com/pennacle-security/summit/discussions/categories/q-a) - beginner questions welcome, answered gladly
+- **Ideas & roadmap votes** -> [Ideas](https://github.com/pennacle-security/summit/discussions/categories/ideas)
+- **Show what you scanned** -> [Show and tell](https://github.com/pennacle-security/summit/discussions/categories/show-and-tell)
+- **Your first contribution** -> issues labeled [good first issue](https://github.com/pennacle-security/summit/labels/good%20first%20issue) come with step-by-step instructions, tests included
+- First issue or PR gets an automatic hello from our welcome bot, and every merged PR earns a spot below
+
+If summit saved you time on an engagement, a star helps the next person find it.
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+
+_No contributors yet - your avatar goes here. Comment `@all-contributors add @yourname code` on any issue to claim a spot._
+
+<!-- markdownlint-enable -->
+<!-- prettier-ignore-end -->
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
 ## Contributing and security
 
 PRs welcome - read the [contributing guide](https://github.com/pennacle-security/.github/blob/main/CONTRIBUTING.md). Adding a scan check is roughly thirty lines if you follow the pattern, and [examples/vuln_app.py](examples/vuln_app.py) gives you a live target to test against.
