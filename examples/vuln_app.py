@@ -68,6 +68,8 @@ PAGE = """<!doctype html>
   <li><a href="/goto?to=/">goto</a></li>
   <li><a href="/.env">env</a></li>
   <li><a href="/graphql">graphql</a></li>
+  <li><a href="/register?email=demo@demo.local">register</a></li>
+  <li><a href="/files/">files</a></li>
   <li><a href="https://summit-demo-dead.example/old-promo">summer promo</a></li>
   <li><a href="https://example.com/">partner</a></li>
 </ul>
@@ -310,6 +312,25 @@ class DemoHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body.encode())))
             self.end_headers()
             self.wfile.write(body.encode())
+
+        elif path == "/register":
+            # Vulnerable: the response tells attackers which emails exist.
+            email = query.get("email", "")
+            if email in ("admin@demo.local", "kevin@demo.local", "sarah@demo.local"):
+                self._html(f"<html><body><p>Error: {email} is already registered.</p></body></html>")
+            else:
+                self._html(f"<html><body><p>Success! A confirmation was sent to {email}.</p></body></html>")
+
+        elif path == "/files/":
+            # Vulnerable: autoindex left on - every uploaded file is listed.
+            body = (
+                "<html><head><title>Directory listing for /files/</title></head><body>"
+                "<h1>Directory listing for /files/</h1><hr><ul>"
+                "<li><a href=\"/files/report-2026.pdf\">report-2026.pdf</a></li>"
+                "<li><a href=\"/files/users.csv\">users.csv</a></li>"
+                "</ul><hr></body></html>"
+            )
+            self._html(body)
 
         elif path == "/redirect":
             # Vulnerable: unvalidated redirect target.

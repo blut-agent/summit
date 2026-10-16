@@ -1,5 +1,6 @@
 from .cors_reflect import CorsReflectionCheck
 from .crlf import CrlfInjectionCheck
+from .enumeration import EnumerationCheck
 from .host_header import HostHeaderInjectionCheck
 from .open_redirect import OpenRedirectCheck
 from .os_command import OsCommandInjectionCheck
@@ -21,6 +22,7 @@ ALL_CHECKS = [
     CrlfInjectionCheck(),
     HostHeaderInjectionCheck(),
     CorsReflectionCheck(),
+    EnumerationCheck(),
     OpenRedirectCheck(),
     PathTraversalCheck(),
 ]

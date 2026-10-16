@@ -8,6 +8,8 @@ from ..http.models import HttpResponse
 from ..takeover import check_takeover
 from ..waf import detect_waf
 from .core import Finding
+from .modules.cacheable import check_cacheable_sensitive
+from .modules.headers_grade import check_headers_grade
 
 SECURITY_HEADERS = [
     ("strict-transport-security", "Strict-Transport-Security", "HSTS forces browsers to use HTTPS."),
@@ -264,6 +266,8 @@ def run_passive(response: HttpResponse) -> list[Finding]:
         check_waf,
         check_challenge,
         check_takeover,
+        check_cacheable_sensitive,
+        check_headers_grade,
     ):
         findings.extend(checker(response))
     return findings

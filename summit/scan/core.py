@@ -60,6 +60,10 @@ CWE_BY_CHECK_ID = {
     "cve-detected": "CWE-1104",
     "sqli-time": "CWE-89",
     "graphql-introspection": "CWE-200",
+    "email-enumeration": "CWE-204",
+    "directory-listing": "CWE-548",
+    "cacheable-sensitive": "CWE-524",
+    "headers-grade": "",
 }
 
 

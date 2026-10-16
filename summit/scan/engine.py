@@ -140,6 +140,13 @@ class ScanEngine:
                         self.add(finding)
                 except Exception as exc:
                     self.errors.append(f"graphql check failed: {exc}")
+                from .modules.directory_listing import run_directory_listing
+
+                try:
+                    for finding in run_directory_listing(self.client, base):
+                        self.add(finding)
+                except Exception as exc:
+                    self.errors.append(f"directory-listing check failed: {exc}")
 
         self.elapsed = time.monotonic() - started
         return self.findings
