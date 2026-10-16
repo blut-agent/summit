@@ -62,7 +62,15 @@ First `--role` is the privileged baseline; the second is what an attacker would 
 summit mine https://app.local/debug --workers 8
 ```
 
-Probes ~70 undocumented parameter names with unique markers. Reflection findings are `confirmed`; behavior changes are `potential`.
+Probes ~120 undocumented parameter names with unique markers. Reflection findings are `confirmed`; behavior changes are `potential`.
+
+## tls - certificate and protocol audit
+
+```bash
+summit tls target.com --port 443 --json tls.json
+```
+
+Checks certificate expiry, self-signing and whether legacy TLS versions (v1.0/1.1) still complete handshakes. Standalone command - it talks to the network by definition.
 
 ## OpenAPI-driven scanning
 
@@ -70,7 +78,7 @@ Probes ~70 undocumented parameter names with unique markers. Reflection findings
 summit scan https://api.local --openapi api-spec.json
 ```
 
-Every documented path becomes a target (path params filled from examples and defaults). JSON specs natively; convert YAML to JSON first.
+Every documented path becomes a target (path params filled from examples and defaults). JSON and YAML specs both supported (PyYAML ships as a dependency).
 
 ## recon - chain your tools
 

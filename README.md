@@ -157,6 +157,7 @@ The demo seeds a *healthy* outbound link (`https://example.com`) as a negative c
 | `summit mine <url>` | hidden parameter discovery (~70 candidates, marker-based). |
 | `summit fuzz <url>` | directory brute force with wildcard-baseline filtering. |
 | `summit recon <domain>` | chain subfinder -> httpx -> nmap into one report. |
+| `summit tls <host>` | certificate expiry / self-signed / legacy TLS version audit. |
 | `summit proxy` | intercepting HTTP proxy with a SQLite site map. |
 | `summit repeater <file>` | send a raw request file (Burp-style). |
 | `summit encode` / `summit decode` | base64, URL, hex, JWT (decode-only, honestly unverified). |
@@ -222,6 +223,8 @@ False positives waste your triage time. False negatives get clients breached. Su
 | Resource takeover signature | passive | high | provider unclaimed-resource page on 404 -> `confirmed` |
 | SQL injection, error-based | active | critical | fresh DB error vs baseline -> `confirmed` |
 | SQL injection, boolean-based | active | critical | response divergence -> `potential` |
+| SQL injection, time-based blind | active | critical | calibrated delay reproduced on every probe -> `potential` |
+| GraphQL introspection enabled | passive-origin | low | real `__schema` payload -> `confirmed` |
 | Reflected XSS | active | high | canary + raw payload reflection -> `confirmed` |
 | WAF filter bypass | active | high | tampered payload lands decoded -> `confirmed` |
 | Host header injection | active | high | marker domain echoed vs baseline -> `confirmed` |
@@ -241,6 +244,8 @@ False positives waste your triage time. False negatives get clients breached. Su
 | Broken outbound link | linkcheck | medium | HTTP 404/410 -> `confirmed` |
 | Unreachable outbound link | linkcheck | low | fails after retry -> `potential` |
 | Outbound link to private IP | linkcheck | info | DNS resolution -> `confirmed`, never fetched |
+| TLS certificate expired / self-signed | tls | high-medium | certificate dates and issuer -> `confirmed` |
+| Legacy TLS versions accepted | tls | medium | handshake completed with TLSv1.0/1.1 -> `confirmed` |
 | Directory fuzz | fuzz | info | status + wildcard baseline |
 
 ## How summit compares
