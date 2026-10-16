@@ -18,6 +18,8 @@ from ...scan.core import Finding
 PATH_SIGNATURES = [
     ("/.env", ["APP_KEY=", "DB_PASSWORD=", "SECRET_KEY="], "environment file"),
     ("/.git/config", ["[core]", "repositoryformatversion"], "git repository metadata"),
+    ("/.git/HEAD", ["ref: refs/"], "git repository head"),
+    ("/.aws/credentials", ["aws_access_key_id", "[default]"], "AWS credentials file"),
     ("/backup.sql", ["CREATE TABLE", "INSERT INTO"], "database dump"),
     ("/wp-config.php", ["DB_NAME", "DB_PASSWORD"], "WordPress configuration"),
     ("/web.config.bak", ["connectionString", "system.web"], "IIS configuration backup"),

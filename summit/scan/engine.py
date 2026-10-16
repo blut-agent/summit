@@ -120,18 +120,26 @@ class ScanEngine:
 
         # Sensitive-file check runs once per scan against the target origin -
         # it is path-based, not parameter-based like the active checks.
+        # GraphQL introspection detection runs the same way.
         if self.active:
             pages = spider_result.get("pages", [])
             if pages:
                 from urllib.parse import urlsplit
                 from .modules.sensitive_files import run_sensitive_files
+                from ..graphql import check_graphql
 
                 origin = urlsplit(pages[0].request.url)
+                base = f"{origin.scheme}://{origin.netloc}"
                 try:
-                    for finding in run_sensitive_files(self.client, f"{origin.scheme}://{origin.netloc}"):
+                    for finding in run_sensitive_files(self.client, base):
                         self.add(finding)
                 except Exception as exc:
                     self.errors.append(f"sensitive-file check failed: {exc}")
+                try:
+                    for finding in check_graphql(self.client, base):
+                        self.add(finding)
+                except Exception as exc:
+                    self.errors.append(f"graphql check failed: {exc}")
 
         self.elapsed = time.monotonic() - started
         return self.findings

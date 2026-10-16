@@ -26,8 +26,8 @@ from .http.client import HttpClient
 from .http.models import HttpRequest
 from .scan.core import Finding
 
-# Parameter names seen in real applications and CTF-writes. Short on
-# purpose: 70 requests is polite, 700 is an attack.
+# Parameter names seen in real applications, bug-bounty writeups and
+# framework source. ~120 entries - comprehensive without being abusive.
 CANDIDATES = [
     "debug", "test", "admin", "internal", "source", "lang", "language", "locale",
     "theme", "preview", "draft", "role", "is_admin", "isadmin", "verbose", "trace",
@@ -37,6 +37,15 @@ CANDIDATES = [
     "sudo", "root", "su", "act_as", "view", "format", "render", "raw", "output",
     "export", "download", "include", "template", "page_id", "site", "ref",
     "log", "logging", "audit", "show", "expand", "all", "full", "detail",
+    "id", "user", "email", "username", "password", "redirect", "next", "url",
+    "path", "file", "dir", "cmd", "exec", "command", "query", "q", "search",
+    "filter", "sort", "order", "limit", "offset", "callback", "return", "returnUrl",
+    "successUrl", "cancelUrl", "webhook", "endpoint", "host", "port", "server",
+    "database", "db", "table", "column", "debug_mode", "diagnostics", "metrics",
+    "features", "flags", "toggle", "enable", "disable", "cache", "nocache",
+    "ttl", "timeout", "retries", "strict", "unsafe", "allow", "deny",
+    "organization", "org", "team", "project", "workspace", "tenant", "cluster",
+    "node", "container", "image", "tag", "branch", "commit", "build", "deploy",
 ]
 
 _MARKER_TEMPLATE = "summit-{name}-9k2probe"

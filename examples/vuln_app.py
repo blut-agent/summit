@@ -30,15 +30,19 @@ Seeded vulnerabilities:
     - SSTI / RCE          /greet?name=     (naive template evaluates {{7*7}})
     - CRLF injection      /goto?to=        (Location header accepts CRLF)
     - sensitive file      /.env            (200 with APP_KEY/DB_PASSWORD content)
+    - time-based SQLi     /user?id=        (SLEEP marker pauses the handler 0.25s)
+    - GraphQL leak        /graphql         (introspection enabled in production)
     - missing security headers + version disclosure on every response
 
 The "partner" link (https://example.com) is a live negative control: a
 healthy outbound link (HTTP 200) must NOT be reported.
 """
 
+import json
 import re
 import sqlite3
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -63,6 +67,7 @@ PAGE = """<!doctype html>
   <li><a href="/greet?name=world">greet</a></li>
   <li><a href="/goto?to=/">goto</a></li>
   <li><a href="/.env">env</a></li>
+  <li><a href="/graphql">graphql</a></li>
   <li><a href="https://summit-demo-dead.example/old-promo">summer promo</a></li>
   <li><a href="https://example.com/">partner</a></li>
 </ul>
@@ -130,6 +135,11 @@ class DemoHandler(BaseHTTPRequestHandler):
 
         elif path == "/user":
             uid = query.get("id", "")
+            # Vulnerable (time-based demo): a SLEEP marker in the input makes
+            # the handler pause briefly - deterministic, capped at 0.25s, so
+            # the time-based check can be demonstrated without hurting anyone.
+            if "SLEEP" in uid:
+                time.sleep(0.25)
             # Vulnerable: user input concatenated straight into SQL.
             sql = f"SELECT id, name, email, last_ip FROM users WHERE id = {uid}"
             try:
@@ -287,6 +297,19 @@ class DemoHandler(BaseHTTPRequestHandler):
                 "DB_HOST=127.0.0.1\n"
             )
             self._html(body)
+
+        elif path == "/graphql":
+            # Vulnerable: introspection is enabled in production.
+            body = json.dumps({
+                "data": {"__schema": {"queryType": {"name": "Query"}, "types": [
+                    {"name": "Query"}, {"name": "User"}, {"name": "Secret"},
+                ]}}
+            })
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body.encode())))
+            self.end_headers()
+            self.wfile.write(body.encode())
 
         elif path == "/redirect":
             # Vulnerable: unvalidated redirect target.

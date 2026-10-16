@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from examples.vuln_app import DemoHandler  # noqa: E402
 from summit.http.client import HttpClient  # noqa: E402
 from summit.http.models import HttpRequest  # noqa: E402
+from summit.scan.core import InjectionPoint  # noqa: E402
 from summit.scan.engine import ScanEngine  # noqa: E402
 from summit.scan.modules.waf_bypass import PAYLOAD  # noqa: E402
 from summit.captcha import detect_challenge  # noqa: E402
@@ -132,6 +133,8 @@ def main() -> int:
         # --- 5. concurrency measured where it matters: a target with latency.
         # Loopback answers in microseconds, which hides what parallelism buys.
         # This endpoint sleeps 25ms per request, like a real server over the wire.
+        # Best of 3 each - CI runners share CPUs and one noisy run must not
+        # fail an otherwise valid claim.
         from concurrent.futures import ThreadPoolExecutor
 
         class SlowHandler(BaseHTTPRequestHandler):
@@ -151,17 +154,25 @@ def main() -> int:
         threading.Thread(target=slow_server.serve_forever, daemon=True).start()
         try:
             urls = [f"http://127.0.0.1:{slow_port}/slow?i={index}" for index in range(40)]
-            started = time.monotonic()
-            for url in urls:
-                client.send(HttpRequest(method="GET", url=url))
-            serial_elapsed = time.monotonic() - started
-            started = time.monotonic()
-            with ThreadPoolExecutor(max_workers=8) as pool:
-                list(pool.map(lambda url: client.send(HttpRequest(method="GET", url=url)), urls))
-            parallel_elapsed = time.monotonic() - started
+
+            def measure(parallel: bool) -> float:
+                best = float("inf")
+                for _ in range(3):
+                    started = time.monotonic()
+                    if parallel:
+                        with ThreadPoolExecutor(max_workers=8) as pool:
+                            list(pool.map(lambda url: client.send(HttpRequest(method="GET", url=url)), urls))
+                    else:
+                        for url in urls:
+                            client.send(HttpRequest(method="GET", url=url))
+                    best = min(best, time.monotonic() - started)
+                return best
+
+            serial_elapsed = measure(parallel=False)
+            parallel_elapsed = measure(parallel=True)
             speedup = serial_elapsed / max(parallel_elapsed, 0.001)
             claim(
-                "concurrency on a latency-bearing target: 8 workers vs serial",
+                "concurrency on a latency-bearing target: 8 workers vs serial (best of 3)",
                 speedup >= 3.0,
                 f"40 requests x 25ms latency: serial {serial_elapsed:.2f}s -> parallel {parallel_elapsed:.2f}s "
                 f"({speedup:.1f}x speedup)",
@@ -283,6 +294,29 @@ def main() -> int:
             "CVE detection: Apache/2.4.49 banner maps to known CVEs",
             "CVE-2021-41773" in cve_ids and "CVE-2021-42013" in cve_ids,
             f"detect_cves('Apache/2.4.49') -> {sorted(cve_ids)}",
+        )
+
+        # --- 17. time-based SQL injection: the /user handler pauses 0.25s on a
+        #         SLEEP marker; the check runs with a matching small threshold
+        from summit.scan.modules.sqli_time import SqliTimeCheck  # noqa: E402
+        time_point = InjectionPoint(
+            request=HttpRequest(method="GET", url=f"{BASE}/user?id=1"),
+            param="id",
+            original_value="1",
+        )
+        time_findings = SqliTimeCheck(delay_threshold=0.2, repetitions=2).run(time_point, client)
+        claim(
+            "time-based SQL injection: reproducible delay detected and calibrated",
+            time_findings and time_findings[0].confidence == "potential",
+            time_findings[0].evidence if time_findings else "not found",
+        )
+
+        # --- 18. GraphQL introspection: found in the full scan
+        gql = next((f for f in findings if f.check_id == "graphql-introspection"), None)
+        claim(
+            "GraphQL introspection detected on a production-looking endpoint",
+            gql is not None and gql.confidence == "confirmed" and "__schema" in gql.evidence,
+            f"{gql.evidence if gql else 'not found'} | {cwe_for('graphql-introspection') or 'CWE-200'}",
         )
     finally:
         server.shutdown()

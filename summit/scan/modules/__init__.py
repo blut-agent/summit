@@ -5,6 +5,7 @@ from .open_redirect import OpenRedirectCheck
 from .os_command import OsCommandInjectionCheck
 from .path_traversal import PathTraversalCheck
 from .sqli import SqliBooleanCheck, SqliErrorCheck
+from .sqli_time import SqliTimeCheck
 from .ssti import SstiCheck
 from .waf_bypass import WafBypassCheck
 from .xss import XssReflectCheck
@@ -12,6 +13,7 @@ from .xss import XssReflectCheck
 ALL_CHECKS = [
     SqliErrorCheck(),
     SqliBooleanCheck(),
+    SqliTimeCheck(),
     XssReflectCheck(),
     WafBypassCheck(),
     OsCommandInjectionCheck(),

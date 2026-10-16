@@ -43,6 +43,8 @@ CWE_BY_CHECK_ID = {
     "crlf-injection": "CWE-113",
     "sensitive-file": "CWE-538",
     "cve-detected": "CWE-1104",
+    "sqli-time": "CWE-89",
+    "graphql-introspection": "CWE-200",
 }
 
 
