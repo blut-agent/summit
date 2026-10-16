@@ -5,54 +5,87 @@
 <p align="center">
   <a href="https://github.com/pennacle-security/summit/actions/workflows/tests.yml"><img src="https://github.com/pennacle-security/summit/actions/workflows/tests.yml/badge.svg" alt="CI status"></a>
   <a href="https://github.com/pennacle-security/summit/releases"><img src="https://img.shields.io/github/v/tag/pennacle-security/summit?label=release&color=2ea44f" alt="release"></a>
-  <a href="https://api.scorecard.dev/projects/github.com/pennacle-security/summit/badge"><img src="https://api.scorecard.dev/projects/github.com/pennacle-security/summit/badge" alt="OpenSSF Scorecard"></a>
   <a href="https://www.bestpractices.dev/projects/15532"><img src="https://www.bestpractices.dev/projects/15532/badge" alt="CII Best Practices"></a>
+  <a href="https://api.scorecard.dev/projects/github.com/pennacle-security/summit/badge"><img src="https://api.scorecard.dev/projects/github.com/pennacle-security/summit/badge" alt="OpenSSF Scorecard"></a>
   <a href="https://pennacle-security.github.io/summit/"><img src="https://img.shields.io/badge/docs-live-2ea44f" alt="docs"></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-3776ab" alt="python 3.10+">
   <img src="https://img.shields.io/github/license/pennacle-security/summit?color=8b949e" alt="MIT license">
   <img src="https://img.shields.io/badge/dependencies-requests%20only-8b949e" alt="one dependency">
 </p>
 
-<p align="center">Proxy, scanner, fuzzer, link-hijack detection, WAF analysis, takeover fingerprints and recon orchestration in one scriptable CLI.<br>A small, honest cousin of ZAP and Burp - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
+<p align="center">One scriptable CLI for web security testing: scanner, proxy, fuzzer, authorization testing, WAF analysis, link-hijack detection and recon.<br>Free where the equivalents are paid - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
 
 ---
 
-We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit is that tool. It is young (v0.4) and built in the open.
-
-**Every claim on this page is reproduced by [`examples/evidence.py`](examples/evidence.py)** - it runs the demo target live, measures each feature, and prints PASS/FAIL with the real numbers. CI executes it on every push; a claim that stops holding fails the build.
+We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit is that tool - v0.5, MIT, one dependency (`requests`), built in the open.
 
 **Full documentation:** [pennacle-security.github.io/summit](https://pennacle-security.github.io/summit/)
 
 ## Contents
 
-- [Proof, not promises](#proof-not-promises)
-- [Install](#install)
-- [Quickstart](#quickstart)
-- [WAF detection and bypass](#waf-detection-and-bypass)
-- [CAPTCHA: detect, do not solve](#captcha-detect-do-not-solve)
-- [Rate limiting, timeouts and retries](#rate-limiting-timeouts-and-retries)
-- [Smart probe prioritization](#smart-probe-prioritization)
-- [Recon orchestration: subfinder, httpx, nmap](#recon-orchestration-subfinder-httpx-nmap)
-- [Toolkit: the Decoder bits you actually use](#toolkit-the-decoder-bits-you-actually-use)
-- [Updates](#updates)
-- [Broken link hijacking](#broken-link-hijacking)
-- [Anti false positives and false negatives](#anti-false-positives-and-false-negatives)
-- [Check catalog](#check-catalog)
-- [How summit compares](#how-summit-compares)
-- [Roadmap](#roadmap)
-- [Contributing and security](#contributing-and-security)
-- [Legal](#legal)
+1. [At a glance](#at-a-glance)
+2. [Quick start](#quick-start)
+3. [Proof, not promises](#proof-not-promises)
+4. [Commands](#commands)
+5. [Feature notes](#feature-notes)
+6. [Anti false positives and false negatives](#anti-false-positives-and-false-negatives)
+7. [Check catalog](#check-catalog)
+8. [How summit compares](#how-summit-compares)
+9. [Roadmap](#roadmap)
+10. [Community and contributors](#community-and-contributors)
+11. [Contributing and security](#contributing-and-security)
+12. [Legal and license](#legal-and-license)
+
+## At a glance
+
+Capabilities that usually sit behind paid tooling, plus the scanning core:
+
+| Capability | Summit | The usual route |
+|---|---|---|
+| Broken access control testing (BOLA/IDOR) | `summit authorize` | Autorize-style add-on / paid workflows |
+| Hidden parameter discovery | `summit mine` | Param Miner-style add-on |
+| OpenAPI-driven scanning | `summit scan --openapi` | add-ons |
+| WAF fingerprinting + bypass probing | built in | partial / add-ons |
+| Broken-link hijack detection | built in | paid extension |
+| SQLi, XSS, redirect, traversal, takeover, host header, CORS | built in | core scanners (free) |
+| Recon chain: subfinder -> httpx -> nmap | `summit recon` | manual gluing |
+| Rate limiting, retries, JWT/encoder toolkit | built in | add-ons / paid |
+| CI-ready, confidence-labelled findings | the whole point | paid automation |
+
+Every finding carries a confidence label: `confirmed` (an observed fact) or `potential` (a heuristic). That distinction runs through the entire tool.
+
+## Quick start
+
+```bash
+git clone https://github.com/pennacle-security/summit.git
+cd summit
+pip install -e .
+```
+
+Python 3.10+. Then watch it work against a deliberately vulnerable local target:
+
+```bash
+python examples/vuln_app.py        # terminal 1 - the target (127.0.0.1 only)
+summit scan http://127.0.0.1:8765  # terminal 2 - the scan
+```
+
+A fuller pass on a real engagement looks like this:
+
+```bash
+summit recon target.com --json recon.json                 # subdomains -> hosts -> ports
+summit scan https://target.com --depth 2 --rate 10        # crawl + all checks
+summit scan --openapi api-spec.json                       # API: scan what the spec admits to
+summit authorize https://target.com/admin?user=1 \
+  --role 'admin=Cookie: session=abc' \
+  --role 'user=Cookie: session=xyz'                       # BOLA/IDOR testing
+```
 
 ## Proof, not promises
 
-Every feature is verified against [examples/vuln_app.py](examples/vuln_app.py) - a deliberately vulnerable local app with thirteen seeded issue classes, bound to 127.0.0.1 only. Below is a real v0.4.0 scan against it:
-
-<p align="center">
-  <img src="docs/assets/demo.png" alt="real summit v0.4.0 scan output against the local demo target" width="760">
-</p>
+Every claim on this page is reproduced by [`examples/evidence.py`](examples/evidence.py) - it runs the demo target live, measures each feature, and prints PASS/FAIL with the real numbers. CI executes it on every push; a claim that stops holding fails the build.
 
 <details>
-<summary>Measured evidence (from <code>python examples/evidence.py</code>, not a mockup)</summary>
+<summary>Latest measured run (<code>python examples/evidence.py</code>)</summary>
 
 ```text
 [PASS] full scan: 12 seeded check families detected, zero false positives
@@ -89,143 +122,59 @@ evidence summary: 14/14 claims verified
 
 </details>
 
-Run it yourself:
+A visual of a real scan against the demo target:
 
-    python examples/vuln_app.py             # terminal 1 - the target
-    summit scan http://127.0.0.1:8765       # terminal 2 - the scan
-    python examples/evidence.py             # reproduce every claim above
+<p align="center">
+  <img src="docs/assets/demo.png" alt="real summit scan output against the local demo target" width="760">
+</p>
 
-The demo seeds a *healthy* outbound link (`https://example.com`) as a negative control - it must never be reported, and CI asserts that alongside the seeded detections. If a claim ever stops holding, CI fails. Found something wrong anyway? [Report it](https://github.com/pennacle-security/summit/issues/new?template=bug_report.yml).
+Reproduce everything yourself:
 
-## Install
+```bash
+python examples/vuln_app.py    # terminal 1 - the target
+summit scan http://127.0.0.1:8765
+python examples/evidence.py    # re-verify every claim above
+```
 
-    git clone https://github.com/pennacle-security/summit.git
-    cd summit
-    pip install -e .
+The demo seeds a *healthy* outbound link (`https://example.com`) as a negative control - it must never be reported, and CI asserts that alongside the seeded detections. Found something wrong anyway? [Report it](https://github.com/pennacle-security/summit/issues/new?template=bug_report.yml).
 
-Python 3.10+. The only dependency is `requests`.
+## Commands
 
-## Quickstart
+| Command | What it does |
+|---|---|
+| `summit scan <url>` | crawl, then passive + active checks, link health, WAF analysis. `--openapi` scans a spec instead of crawling. `--json` / `--html` reports. |
+| `summit authorize <url...>` | BOLA/IDOR testing: compare responses between two roles. |
+| `summit mine <url>` | hidden parameter discovery (~70 candidates, marker-based). |
+| `summit fuzz <url>` | directory brute force with wildcard-baseline filtering. |
+| `summit recon <domain>` | chain subfinder -> httpx -> nmap into one report. |
+| `summit proxy` | intercepting HTTP proxy with a SQLite site map. |
+| `summit repeater <file>` | send a raw request file (Burp-style). |
+| `summit encode` / `summit decode` | base64, URL, hex, JWT (decode-only, honestly unverified). |
+| `summit --check-update` / `--auto-update` / `--install-tools` | versioning and recon tool installer. |
 
-    # full scan: crawl, passive + active checks, link health, WAF analysis
-    summit scan https://testsite.local --depth 2 --workers 8 --rate 10
+Shared flags on scanning commands: `--workers`, `--rate` (requests/second ceiling), `--retries` (with `Retry-After` support), `--timeout`, `--delay`.
 
-    # polite mode: hard rate limit, retries with Retry-After support
-    summit scan https://testsite.local --rate 5 --retries 2 --timeout 15
+## Feature notes
 
-    # passive only - no attack traffic at all
-    summit scan https://testsite.local --no-active
+**Authorization testing.** Requests each URL as a privileged and a low-privilege role, then compares. Verdicts: `enforced` (roles differ), `broken` (identical response for the low-privilege role - critical, `confirmed`), `partial` (same status, different body - `potential`). Measured on the demo: the admin panel serves salaries to both roles, caught as `confirmed`.
 
-    # write reports
-    summit scan https://testsite.local --json report.json --html report.html
+**Hidden parameter mining.** Servers read parameters the HTML never mentions - debug switches, feature flags, internal overrides. ~70 candidate names are probed with unique markers; reflection findings are `confirmed`, status/size shifts are `potential`. Measured: the demo's undocumented `debug` switch found as `confirmed`, the other candidates silent - zero noise.
 
-    # directory brute force
-    summit fuzz https://testsite.local -w my-wordlist.txt -e php,bak -t 20
+**OpenAPI-driven scanning.** Every documented endpoint becomes a target, with path params filled from examples and defaults - no crawling, no guessing. Measured: the spec alone leads the engine to the seeded SQLi and XSS. JSON specs natively; YAML needs converting first (the dependency list stays at exactly one).
 
-    # recon chain: subfinder -> httpx -> nmap (whichever are installed)
-    summit recon testsite.local --json recon.json
+**WAF detection and bypass.** Tight vendor signatures for Cloudflare, AWS WAF, Akamai, Imperva, ModSecurity, Sucuri, F5 and Wordfence. When a filter blocks standard payloads, tamper variants (single/double URL-encoding, comment splitting, case alternation) are tried - and a bypass is reported only when the original payload lands **decoded** in the response. Measured: raw payload -> HTTP 403; encoded once -> HTTP 200, decoded.
 
-    # local proxy, logs plain HTTP into a sqlite site map
-    summit proxy --port 8080
+**CAPTCHA: detect, do not solve.** reCAPTCHA, hCaptcha, Cloudflare Turnstile and challenge pages are detected and reported. Solving them automatically is out of scope by design - that line does not move.
 
-    # repeater: send a raw request file (Burp-style)
-    summit repeater examples/request.txt
+**Broken-link hijacking.** Every outbound link is health-checked: dead domains (DNS verified twice), parked domains (tight fingerprints), broken links (404/410), unreachable hosts, and private-target links - recorded but never fetched, so a hostile page cannot weaponize your scanner as an SSRF probe.
 
-    # decoder toolkit
-    summit decode -f jwt "eyJhbGciOi..."
-    summit encode -f b64 "admin' OR 1=1--"
+**Resource takeover fingerprints.** A 404 answered with a provider's unclaimed-resource page (AWS S3, GitHub Pages, Heroku, Azure, Shopify, Fastly, Pantheon, Tumblr, Surge, Bitbucket) is a takeover setup. Fingerprint-only: no DNS tricks, no active claiming, ever.
 
-    # stay current
-    summit --check-update
-    summit --auto-update
-    summit --install-tools
+**Recon orchestration.** subfinder -> httpx -> nmap, whichever are installed, with defensive parsing: passive-DNS noise capped, per-tool timeouts degrade into notes, and a crashed nmap is reported as *failed* - never as "no open ports".
 
-## WAF detection and bypass
+**Rate limiting and prioritization.** `--rate` is a thread-safe requests/second ceiling (measured: 12 requests paced to 2.20s at rate 5; 0.02s unlimited). A transparent scoring model orders high-signal parameters first - deterministic and auditable, deliberately not a "neural network" claim.
 
-Summit fingerprints the WAF from tight signatures (Cloudflare, AWS WAF, Akamai, Imperva Incapsula, ModSecurity, Sucuri, F5 BIG-IP, Wordfence) and adapts:
-
-- **Detection** is passive and factual: a specific header or the vendor's own block-page text, never "the page mentions GoDaddy".
-- **Bypass probing** runs when a filter blocks the standard payloads. The check tries tamper variants - single/double URL-encoding, comment splitting, case alternation - and reports a bypass **only when the original payload lands decoded in the response**. Encoded-but-inert reflections do not count. Measured on the demo target: raw payload -> HTTP 403; single URL-encoded -> HTTP 200 with the payload decoded.
-
-## CAPTCHA: detect, do not solve
-
-Summit detects reCAPTCHA, hCaptcha, Cloudflare Turnstile and challenge pages, reports exactly which one is in the way, and stops burning requests. Solving CAPTCHAs automatically is out of scope by design - that line does not move.
-
-## Resource takeover fingerprints
-
-New in v0.4. A 404 that answers with a provider's unclaimed-resource page is a takeover setup: the URL still works, the backing resource is gone. Summit fingerprints the classic ones - AWS S3 (`NoSuchBucket`), GitHub Pages, Heroku, Azure, Shopify, Fastly, Pantheon, Tumblr, Surge, Bitbucket - and reports **confirmed** findings with the reclaim instruction. Fingerprint-only by design: no DNS tricks, no active claiming, ever.
-
-## Host header injection
-
-New in v0.4. Applications that build absolute URLs from the Host header (password reset links, redirects) can be poisoned. The probe sets a marker domain as Host and reports only when it comes back - and only when it is absent from the baseline, so pre-existing content can never trigger it. Measured on the demo target: `Host: summit-host-probe.example -> reflected` in a reset link, `confirmed`.
-
-## CORS origin reflection
-
-New in v0.4. Beyond the wildcard+credentials pattern, the active probe sends `Origin: https://summit-cors-probe.example` and reports when the server reflects it into `Access-Control-Allow-Origin` with credentials allowed - the configuration that lets any website read authenticated responses. Measured: reflected, `confirmed`.
-
-## Broken access control - the Autorize workflow, free
-
-New in v0.5. The Autorize workflow is how professionals hunt BOLA/IDOR: request each URL as a privileged role and as a low-privilege role, then compare. Scripted:
-
-    summit authorize https://app.local/admin?user=1 \
-      --role 'admin=Cookie: session=admintoken' \
-      --role 'user=Cookie: session=usertoken'
-
-Verdicts per URL: `enforced` (roles differ - working authz), `broken` (the low-privilege role receives an identical response - critical, `confirmed`), `partial` (same status, different body - worth a human look, `potential`). Measured on the demo app: the admin panel serves salaries to both roles, caught as `confirmed`.
-
-## Hidden parameter mining - Param Miner's approach, free
-
-New in v0.5. Servers read parameters the HTML never mentions: debug switches, feature flags, internal overrides. `summit mine` replays the URL with ~70 candidate names, each carrying a unique marker:
-
-    summit mine https://app.local/debug
-
-A candidate is reported only when something objectively changed: the marker is reflected (`confirmed`) or status/size shifted meaningfully (`potential`). Measured on the demo app: the undocumented `debug` switch is found as `confirmed`, and the other ~70 candidates stay silent - zero noise.
-
-## OpenAPI-driven scanning
-
-New in v0.5. Modern APIs ship their own attack-surface map. Point summit at the spec and every documented endpoint becomes a target - path params filled from examples and defaults, no crawling, no guessing:
-
-    summit scan https://api.local --openapi api-spec.json
-
-Measured on the demo: the spec alone leads the engine to the seeded SQL injection and XSS. JSON specs natively; YAML specs need converting first (the dependency list stays at exactly one).
-
-## Rate limiting, timeouts and retries
-
-- `--rate 5` - hard ceiling of 5 requests/second across all worker threads (thread-safe slot queue; measured: 12 requests paced to 2.20s, unlimited runs the same 12 in 0.02s).
-- `--timeout 15` - per-request timeout.
-- `--retries 2` - retries on connection errors and 429/503, honoring `Retry-After` (capped at 30s). A server that always fails gets exactly `1 + retries` attempts and the final state is reported honestly - proven by a live test that counts the hits.
-
-## Smart probe prioritization
-
-The engine orders injection points by a transparent scoring model (weights are readable in `summit/smart.py`): parameters whose names map to injection families (id, q, url, file...) and values that look numeric or URL-shaped go first, so the interesting findings surface early and a Ctrl+C mid-scan leaves the good half done. Scan output shows the count: `smart order: 4 high-signal injection point(s) probed first`. It is deterministic and auditable - deliberately not a "neural network" claim.
-
-## Recon orchestration: subfinder, httpx, nmap
-
-    summit recon testsite.local
-
-Chains the tools you already have installed: subdomains -> live hosts -> open ports, printed as one report. Missing tools are listed with exact install commands; `summit --install-tools` attempts the install (go for subfinder/httpx, winget/apt/brew for nmap). Defensive parsing throughout: subfinder noise on common domains is capped, per-tool timeouts degrade gracefully into notes instead of killing the run, and an nmap that crashes is reported as *failed*, never as "no open ports".
-
-## Toolkit: the Decoder bits you actually use
-
-    summit decode -f jwt "eyJhbGci..."   # header + payload JSON, honest "signature NOT verified" note
-    summit decode -f b64 c3VtbWl0
-    summit encode -f url "admin' OR 1=1--"
-
-## Updates
-
-    summit --check-update     # compares against the latest GitHub release, numerically (0.3 < 0.10)
-    summit --auto-update      # git pull when running from a checkout; exact steps otherwise
-    summit --install-tools    # best-effort installer for the recon integrations
-
-## Broken link hijacking
-
-New in v0.2, kept in v0.3. The spider records every outbound link; the engine checks each unique one:
-
-- **dead domain** - DNS failure verified twice (high, `confirmed`)
-- **parked domain** - tight parking fingerprints (high, `confirmed`)
-- **broken link** - HTTP 404/410 (medium, `confirmed`)
-- **unreachable** - timeouts, 5xx after retry (low, `potential`)
-- **private-target link** - resolves into private/link-local space; recorded, never fetched, so a hostile page cannot use your scanner as a blind SSRF probe (info, `confirmed`)
+**Toolkit and updates.** JWT decode with an honest "signature NOT verified" note, base64/URL/hex both directions, numeric version comparison against GitHub releases (`0.3 < 0.10`), self-update from a git checkout.
 
 ## Anti false positives and false negatives
 
@@ -233,18 +182,18 @@ False positives waste your triage time. False negatives get clients breached. Su
 
 | Mechanism | What it kills |
 |---|---|
-| **Two-stage XSS check** - a unique canary goes first; attack payloads only fire on parameters that actually reflect input | payload noise on the thousands of parameters that never reflect |
-| **Baseline diffing** - every probe is compared against an unmodified request of the same parameter | error strings that were already sitting in the page |
-| **Divergence + baseline match** (boolean SQLi) - `AND 1=1` must look like the baseline, `AND 1=2` must differ | pages that simply vary per request |
-| **Wildcard baseline in the fuzzer** - a random nonexistent path is measured first; identical answers get filtered | "everything returns 200" servers flooding your report |
-| **DNS double-check** (linkcheck) - a host must fail to resolve twice before a hijack finding fires | transient resolver hiccups becoming fake "dead domain" reports |
-| **SSRF guard** (linkcheck) - private/link-local/metadata ranges are recorded, never fetched | your scanner being weaponized against internal networks |
-| **Tamper honesty** (WAF bypass) - a bypass finding requires the original payload decoded in the response; encoded-but-inert reflections are not bypasses | "we bypassed the WAF" reports that would not survive a browser |
-| **Tracker/opaque param filter** - `utm_*`, `fbclid`, `gclid` and 40+ char opaque tokens are never probed | wasted requests and padded reports |
-| **Negative control in CI** - the demo seeds a healthy link that must stay unreported, asserted on every push | silent regressions into false-positive territory |
+| **Two-stage XSS check** - a unique canary goes first; payloads only fire on parameters that actually reflect | payload noise on parameters that never reflect |
+| **Baseline diffing** - every probe compared against the same request untouched | error strings already sitting in the page |
+| **Divergence + baseline match** (boolean SQLi) - `AND 1=1` must match the baseline, `AND 1=2` must differ | pages that simply vary per request |
+| **Wildcard baseline** (fuzzer) - a random nonexistent path is measured first | "everything returns 200" servers flooding the report |
+| **DNS double-check** (linkcheck) - a host must fail to resolve twice | transient resolver hiccups becoming fake hijack reports |
+| **SSRF guard** - private/link-local/metadata ranges recorded, never fetched | your scanner weaponized against internal networks |
+| **Tamper honesty** (WAF bypass) - requires the payload decoded in the response | bypass reports that would not survive a browser |
+| **Tracker/opaque param filter** - `utm_*`, `fbclid`, 40+ char tokens never probed | wasted requests and padded reports |
+| **Negative control in CI** - a healthy link that must stay unreported, asserted every push | silent regressions into false-positive territory |
 | **Scope lock** - the spider never leaves the target host | crawling half the internet, and legal exposure |
-| **Confidence labels** - `confirmed` = observed fact; `potential` = heuristic | one flat "everything is critical" triage queue |
-| **Unbreakable probe hosts** - redirect probes use `.example`, which cannot resolve | third-party callbacks and accidental DoS |
+| **Confidence labels** - fact vs heuristic, on every finding | one flat "everything is critical" triage queue |
+| **Unbreakable probe hosts** - `.example` cannot resolve | third-party callbacks and accidental DoS |
 
 ## Check catalog
 
@@ -265,11 +214,11 @@ False positives waste your triage time. False negatives get clients breached. Su
 | WAF filter bypass | active | high | tampered payload lands decoded -> `confirmed` |
 | Host header injection | active | high | marker domain echoed vs baseline -> `confirmed` |
 | CORS origin reflection | active | high | arbitrary origin reflected + credentials -> `confirmed` |
+| Open redirect | active | medium | 3xx Location to probe host -> `confirmed` |
+| Path traversal | active | high | OS file indicators -> `confirmed` |
 | Broken access control (BOLA/IDOR) | authorize | critical | identical response for low-privilege role -> `confirmed` |
 | Hidden parameter (reflected) | mine | medium | unique marker reflected -> `confirmed` |
 | Hidden parameter (behavior) | mine | low | status/size shift -> `potential` |
-| Open redirect | active | medium | 3xx Location to probe host -> `confirmed` |
-| Path traversal | active | high | OS file indicators -> `confirmed` |
 | Link to dead domain (hijack) | linkcheck | high | DNS failure, verified twice -> `confirmed` |
 | Link to parked domain (hijack) | linkcheck | high | tight parking fingerprints -> `confirmed` |
 | Broken outbound link | linkcheck | medium | HTTP 404/410 -> `confirmed` |
@@ -284,16 +233,16 @@ False positives waste your triage time. False negatives get clients breached. Su
 | Price | free, MIT | free | paid core |
 | UI | CLI + HTML/JSON reports | full GUI | full GUI |
 | Scriptable in CI | yes, that is the point | add-ons | paid automation |
-| Findings carry confidence labels | yes | partial | partial |
-| Broken link hijacking built in | yes | add-on | paid extension |
-| WAF detection + bypass probing | built in | partial | partial |
+| Confidence-labelled findings | yes | partial | partial |
 | Authorization testing (Autorize-style) | built in, scriptable | add-on | paid workflows |
 | Hidden parameter mining (Param Miner-style) | built in | add-on | add-on |
 | OpenAPI-driven scanning | built in | add-on | add-on |
+| WAF detection + bypass probing | built in | partial | partial |
+| Broken-link hijacking | built in | add-on | paid extension |
 | Rate limiting | built in, thread-safe | add-on | paid |
 | JWT/encoder toolkit | built in | add-on | built in |
 | Takeover fingerprints, host header, CORS | built in | add-ons | add-ons |
-| Codebase you can audit in an afternoon | ~3.1k lines | large | closed source |
+| Codebase you can audit in an afternoon | ~3.2k lines | large | closed source |
 | TLS-intercepting proxy | on the roadmap | yes | yes |
 
 We are not trying to replace either of them. Summit is the small tool you drop into a pipeline or onto a VPS box, and the codebase you can actually read line by line.
@@ -307,15 +256,15 @@ We are not trying to replace either of them. Summit is the small tool you drop i
 - [ ] Plugin API for custom checks
 - [ ] Request interception UI
 
-## Community & contributors
+## Community and contributors
 
-A repository that helps people back grows through word-of-mouth. So we put our money where our issues are:
+A repository that helps people back grows through word-of-mouth:
 
 - **Questions** -> [Q&A discussion](https://github.com/pennacle-security/summit/discussions/categories/q-a) - beginner questions welcome, answered gladly
 - **Ideas & roadmap votes** -> [Ideas](https://github.com/pennacle-security/summit/discussions/categories/ideas)
 - **Show what you scanned** -> [Show and tell](https://github.com/pennacle-security/summit/discussions/categories/show-and-tell)
-- **Your first contribution** -> issues labeled [good first issue](https://github.com/pennacle-security/summit/labels/good%20first%20issue) come with step-by-step instructions, tests included
-- First issue or PR gets an automatic hello from our welcome bot, and every merged PR earns a spot below
+- **Your first contribution** -> [good first issues](https://github.com/pennacle-security/summit/labels/good%20first%20issue) come with step-by-step instructions
+- First issues and PRs get a personal review and a spot below; the welcome bot says hello too
 
 If summit saved you time on an engagement, a star helps the next person find it.
 
@@ -338,14 +287,10 @@ If summit saved you time on an engagement, a star helps the next person find it.
 
 ## Contributing and security
 
-PRs welcome - read the [contributing guide](https://github.com/pennacle-security/.github/blob/main/CONTRIBUTING.md). Adding a scan check is roughly thirty lines if you follow the pattern, and [examples/vuln_app.py](examples/vuln_app.py) gives you a live target to test against.
+PRs welcome - the [contributing guide](https://github.com/pennacle-security/.github/blob/main/CONTRIBUTING.md) covers the process, and adding a scan check is roughly thirty lines if you follow the pattern. [examples/vuln_app.py](examples/vuln_app.py) gives you a live target to test against.
 
 Security issues go through private disclosure only. Details in the [security policy](https://github.com/pennacle-security/.github/blob/main/SECURITY.md).
 
-## Legal
+## Legal and license
 
-Summit is built for authorized security testing: your own systems, or systems you have written permission to test. We are not responsible for misuse.
-
-## License
-
-MIT
+Summit is built for authorized security testing: your own systems, or systems you have written permission to test. We are not responsible for misuse. Licensed under [MIT](LICENSE).
