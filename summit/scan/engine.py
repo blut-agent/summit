@@ -5,7 +5,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ..http.client import HttpClient
-from ..http.models import HttpResponse
 from ..smart import prioritize, score_point
 from .core import Check, Finding, InjectionPoint
 from .linkcheck import check_links
