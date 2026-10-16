@@ -1,0 +1,28 @@
+openapi: 3.0.0
+info:
+  title: Summit demo shop API
+  version: "1.0"
+  description: >-
+    YAML view of the demo app. Proves PyYAML-backed spec loading:
+    summit scan --openapi examples/openapi.yaml
+servers:
+  - url: http://127.0.0.1:8765
+paths:
+  /user:
+    get:
+      summary: Fetch a user record
+      parameters:
+        - name: id
+          in: query
+          schema:
+            type: integer
+            example: 1
+  /search:
+    get:
+      summary: Search products
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+            example: laptop

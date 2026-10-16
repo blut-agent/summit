@@ -131,3 +131,38 @@ def test_sensitive_env_file_detected_live():
         assert findings[0].confidence == "confirmed"
     finally:
         server.shutdown()
+
+
+# --- CVE range matching (packaging-backed, offline) ---
+
+def test_cve_ranges_match_boundaries():
+    hits_49 = {h["cve"] for h in detect_cves("Apache/2.4.49")}
+    hits_50 = {h["cve"] for h in detect_cves("Apache/2.4.50")}
+    hits_48 = {h["cve"] for h in detect_cves("Apache/2.4.48")}
+    hits_51 = {h["cve"] for h in detect_cves("Apache/2.4.51")}
+    assert hits_49 == {"CVE-2021-41773", "CVE-2021-42013"}
+    assert hits_50 == {"CVE-2021-42013"}
+    assert hits_48 == set()   # below the affected range
+    assert hits_51 == set()   # above the affected range
+
+
+def test_cve_non_pep440_versions_use_exact_lists():
+    assert any(h["cve"] == "CVE-2014-0160" for h in detect_cves("OpenSSL/1.0.1f"))
+    assert any(h["cve"] == "CVE-2014-0160" for h in detect_cves("OpenSSL/1.0.1"))
+    assert not any(h["cve"] == "CVE-2014-0160" for h in detect_cves("OpenSSL/1.0.2a"))
+
+
+def test_tomcat_multi_range_ghostcat():
+    assert any(h["cve"] == "CVE-2020-1938" for h in detect_cves("Apache Tomcat/9.0.30"))
+    assert not any(h["cve"] == "CVE-2020-1938" for h in detect_cves("Apache Tomcat/9.0.31"))
+
+
+# --- YAML OpenAPI specs ---
+
+def test_yaml_spec_loads_and_builds_targets():
+    from summit.openapi import build_requests, load_spec
+
+    spec = load_spec("examples/openapi.yaml")
+    requests = build_requests(spec)
+    urls = {r.url for r in requests}
+    assert "http://127.0.0.1:8765/user?id=1" in urls

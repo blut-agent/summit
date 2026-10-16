@@ -1,57 +1,111 @@
 """Offline CVE detection from version banners.
 
-This is a small, curated database: product -> affected versions -> CVE.
-It only fires on exact, well-known version strings parsed from Server
-and X-Powered-By headers, and every finding is marked `potential` -
-banners can be spoofed, so a human confirms before acting. Extend the
-table via PRs; entries must cite the CVE id and what it allows.
+A small, curated database: product -> affected version ranges -> CVE.
+Ranges are matched with `packaging.version` (proper semantic comparison,
+not string tricks); products whose versions are not PEP-440 shaped
+(OpenSSL's `1.0.1f`) fall back to explicit exact-version lists.
+
+Every finding is marked `potential` - banners are trivially spoofed.
+Extend the table via PRs; entries must cite the CVE id and what it
+allows, and ranges must be defensible from the advisory.
 """
 
 from __future__ import annotations
 
 import re
 
-# (header regex, [(affected versions |-separated, CVE id, what it allows)])
+from packaging.version import InvalidVersion, Version
+
+# (header regex, [range specs]) - a range spec is one or more ranges
+# separated by ";". Each range is either ">=a,<b" (packaging comparison)
+# or a comma-separated list of exact versions (for non-PEP440 versions).
 CVE_DATABASE: list[tuple[str, list[tuple[str, str, str]]]] = [
     (
         r"apache/(\d+\.\d+(?:\.\d+)?)",
         [
-            ("2.4.49", "CVE-2021-41773", "path traversal and possible RCE via crafted requests"),
-            ("2.4.49|2.4.50", "CVE-2021-42013", "path traversal and RCE - bypass of the incomplete CVE-2021-41773 fix"),
+            (">=2.4.49,<2.4.50", "CVE-2021-41773", "path traversal and possible RCE via crafted requests"),
+            (">=2.4.49,<=2.4.50", "CVE-2021-42013", "path traversal and RCE - bypass of the incomplete CVE-2021-41773 fix"),
         ],
     ),
     (
         r"nginx/(\d+\.\d+(?:\.\d+)?)",
         [
-            ("1.20.0", "CVE-2021-23017", "DNS resolver one-byte memory overwrite - possible RCE"),
+            (">=1.20.0,<1.20.1", "CVE-2021-23017", "DNS resolver one-byte memory overwrite - possible RCE"),
         ],
     ),
     (
-        r"openssh[_ ](\d+\.\d+(?:\.\d+)?)",
+        r"openssl/(\d+\.\d+\.\d+[a-z]?)",
         [
-            ("7.2", "CVE-2016-10009", "unauthenticated remote code execution via agent forwarding"),
+            (
+                "1.0.1,1.0.1a,1.0.1b,1.0.1c,1.0.1d,1.0.1e,1.0.1f",
+                "CVE-2014-0160",
+                "Heartbleed - up to 64KB of process memory leaked per request",
+            ),
         ],
     ),
     (
         r"php/(\d+\.\d+(?:\.\d+)?)",
         [
-            ("7.4.0", "CVE-2019-11043", "RCE in certain nginx+php-fpm configurations"),
+            (">=7.1.0,<7.3.11", "CVE-2019-11043", "RCE in certain nginx + php-fpm configurations"),
         ],
     ),
     (
-        r"tomcat/(\d+)",
+        r"tomcat/(\d+(?:\.\d+)*)",
         [
-            ("9", "CVE-2020-1938", "Ghostcat - AJP connector file read, possible RCE"),
+            (
+                ">=6.0.0,<6.0.53;>=7.0.0,<7.0.100;>=8.0.0,<8.5.51;>=9.0.0,<9.0.31;>=10.0.0,<10.0.3",
+                "CVE-2020-1938",
+                "Ghostcat - AJP connector file read, possible RCE",
+            ),
         ],
     ),
 ]
 
 
+def _version(value: str):
+    try:
+        return Version(value)
+    except InvalidVersion:
+        return None
+
+
+def _range_matches(version: str, range_spec: str) -> bool:
+    parsed = _version(version)
+    for part in range_spec.split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        if parsed is not None and (">" in part or "<" in part):
+            # packaging range: ">=a,<b" (<= and > single-sided also fine)
+            ok = True
+            for clause in part.split(","):
+                clause = clause.strip()
+                operator = clause[:2] if clause[:2] in (">=", "<=") else clause[0]
+                bound = _version(clause[len(operator):].strip())
+                if bound is None:
+                    ok = False
+                    break
+                if operator == ">=" and not parsed >= bound:
+                    ok = False
+                elif operator == "<=" and not parsed <= bound:
+                    ok = False
+                elif operator == ">" and not parsed > bound:
+                    ok = False
+                elif operator == "<" and not parsed < bound:
+                    ok = False
+            if ok:
+                return True
+        else:
+            # exact-version list (non-PEP440 versions like 1.0.1f)
+            if version in [token.strip() for token in part.split(",")]:
+                return True
+    return False
+
+
 def detect_cves(*banner_values: str) -> list[dict]:
     """Match version banners against the database.
 
-    Returns a list of {cve, version, description} dicts. Only exact
-    affected-version strings fire - ranges would be guessing.
+    Returns a list of {cve, version, description} dicts.
     """
     text = " ".join(value for value in banner_values if value).lower()
     findings: list[dict] = []
@@ -60,7 +114,7 @@ def detect_cves(*banner_values: str) -> list[dict]:
         if not match:
             continue
         version = match.group(1)
-        for affected, cve_id, description in entries:
-            if version in affected.split("|"):
+        for range_spec, cve_id, description in entries:
+            if _range_matches(version, range_spec):
                 findings.append({"cve": cve_id, "version": version, "description": description})
     return findings

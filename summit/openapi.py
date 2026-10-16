@@ -24,11 +24,21 @@ def load_spec(path: str) -> dict:
     document = Path(path).read_text(encoding="utf-8")
     try:
         return json.loads(document)
-    except json.JSONDecodeError as exc:
+    except json.JSONDecodeError:
+        pass
+    # Not JSON - try YAML (pyyaml is an optional integration; the error is
+    # explicit when it is missing).
+    try:
+        import yaml
+    except ImportError as exc:
         raise ValueError(
-            f"{path} is not valid JSON ({exc}). Summit reads JSON specs; convert YAML specs with "
-            "any yaml-to-json tool first."
+            f"{path} is not valid JSON, and PyYAML is not installed to read YAML specs "
+            f"({exc}). Install it with `pip install pyyaml`, or convert the spec to JSON."
         ) from exc
+    spec = yaml.safe_load(document)
+    if not isinstance(spec, dict):
+        raise ValueError(f"{path} did not parse into an OpenAPI object")
+    return spec
 
 
 def _example_for(param: dict) -> str:
