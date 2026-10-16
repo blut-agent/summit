@@ -24,6 +24,8 @@ Seeded vulnerabilities:
     - resource takeover   /old-bucket      (404 + S3 NoSuchBucket signature)
     - host header inject  /reset?user=     (reflects the Host header into a reset link)
     - CORS reflection     /api?user=1      (reflects any Origin, credentials allowed)
+    - broken authz        /admin?user=1    (admin panel served to any role - BOLA demo)
+    - hidden parameter    /debug           (undocumented debug param, reflected)
     - missing security headers + version disclosure on every response
 
 The "partner" link (https://example.com) is a live negative control: a
@@ -215,6 +217,29 @@ class DemoHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(data.encode())))
             self.end_headers()
             self.wfile.write(data.encode())
+
+        elif path == "/admin":
+            # Vulnerable: the admin panel is served to ANY role. The session
+            # cookie is decorative - nothing is checked. This is the endpoint
+            # `summit authorize` exists to catch.
+            self._html(
+                "<html><body><h1>Admin panel</h1>"
+                "<p>Salary report: admin 9500, users 3200/3100/3000.</p>"
+                "<p>Internal notes: acquisition planned Q3.</p></body></html>"
+            )
+
+        elif path == "/debug":
+            # Vulnerable: an undocumented parameter flips the page into debug
+            # mode and echoes its value. Nothing in the HTML advertises it -
+            # exactly what `summit mine` is for.
+            debug_value = query.get("debug", "")
+            if debug_value:
+                self._html(
+                    f"<html><body><p>Normal page</p>"
+                    f"<!-- debug mode enabled by request: {debug_value} --></body></html>"
+                )
+            else:
+                self._html("<html><body><p>Normal page</p></body></html>")
 
         elif path == "/redirect":
             # Vulnerable: unvalidated redirect target.

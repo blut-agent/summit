@@ -46,6 +46,32 @@ summit repeater examples/request.txt
 
 Burp-style raw request files. Host headers in the file are honored.
 
+## authorize - broken access control testing
+
+```bash
+summit authorize https://app.local/admin?user=1 \
+  --role 'admin=Cookie: session=admintoken' \
+  --role 'user=Cookie: session=usertoken'
+```
+
+First `--role` is the privileged baseline; the second is what an attacker would have. Verdicts: `enforced`, `broken` (identical response for the low-privilege role - critical), `partial` (same status, different body).
+
+## mine - hidden parameter discovery
+
+```bash
+summit mine https://app.local/debug --workers 8
+```
+
+Probes ~70 undocumented parameter names with unique markers. Reflection findings are `confirmed`; behavior changes are `potential`.
+
+## OpenAPI-driven scanning
+
+```bash
+summit scan https://api.local --openapi api-spec.json
+```
+
+Every documented path becomes a target (path params filled from examples and defaults). JSON specs natively; convert YAML to JSON first.
+
 ## recon - chain your tools
 
 ```bash

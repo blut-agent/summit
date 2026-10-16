@@ -4,6 +4,47 @@ All notable changes to summit are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [v0.5.0] - 2026-10-16
+
+### Added
+
+- `summit authorize` - broken access control testing (the Autorize workflow):
+  request every URL as a privileged and a low-privilege role, compare responses,
+  report BOLA/IDOR candidates (`confirmed`) and partial enforcements
+  (`potential`). Proven on the demo admin panel.
+- `summit mine` - hidden parameter discovery (the Param Miner approach): ~70
+  undocumented parameter names probed with unique markers; reflection findings
+  are `confirmed`, behavior changes are `potential`. Proven on the demo app's
+  hidden `debug` switch, with zero noise on the other candidates.
+- OpenAPI-driven scanning: `summit scan --openapi spec.json` turns a JSON
+  OpenAPI document into scan targets (path params filled from examples and
+  defaults) - the seeded SQLi is found from the spec alone, without crawling.
+- Demo app gained `/admin` (BOLA demo) and `/debug` (hidden parameter demo)
+  plus an OpenAPI view of itself (`examples/openapi.json`).
+- Evidence runner grew to 14 claims, one per feature.
+
+## [v0.4.1] - 2026-10-15
+
+### Added
+
+- CII Best Practices badge (project #15532) and entry.
+
+### Changed
+
+- CI quality gates are now blocking: ruff lint (pycodestyle errors/warnings +
+  pyflakes) before tests; CodeQL (Python) on every push, PR and weekly;
+  OpenSSF Scorecard weekly; Dependabot for pip and action dependencies.
+- All GitHub Actions pinned to full commit SHAs.
+- First external contributions merged: GoDaddy parked-page signature
+  (@SakarPaisen), SiteLock WAF fingerprint (@mrvi0) - contributors wall added.
+- GitHub Pages documentation site (mkdocs Material).
+
+### Fixed
+
+- `import sys` and an unused `HttpResponse` import flagged by ruff 0.17.
+- codeql-action version mismatch after the Dependabot bump (mixed 3.39.0 /
+  4.38.3 steps broke the analysis) - all steps aligned.
+
 ## [v0.4.0] - 2026-10-15
 
 ### Added

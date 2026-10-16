@@ -78,8 +78,13 @@ Every feature is verified against [examples/vuln_app.py](examples/vuln_app.py) -
        probing starts with: [('query', 'search?query=laptop'), ('id', 'user?id=1'), ...]
 [PASS] toolkit decodes JWT header/payload and states the signature is unverified
 [PASS] update check compares versions numerically (0.3 < 0.10)
+[PASS] broken access control: admin panel served identically to a low-privilege role
+       verdict=broken; finding=Broken access control (BOLA/IDOR candidate)
+[PASS] hidden parameter mining finds the undocumented debug parameter, zero noise
+       1 finding(s): ['debug'] (all confirmed reflections)
+[PASS] openapi-driven scan: spec alone leads the engine to seeded SQLi and XSS
 
-evidence summary: 11/11 claims verified
+evidence summary: 14/14 claims verified
 ```
 
 </details>
@@ -158,6 +163,32 @@ New in v0.4. Applications that build absolute URLs from the Host header (passwor
 
 New in v0.4. Beyond the wildcard+credentials pattern, the active probe sends `Origin: https://summit-cors-probe.example` and reports when the server reflects it into `Access-Control-Allow-Origin` with credentials allowed - the configuration that lets any website read authenticated responses. Measured: reflected, `confirmed`.
 
+## Broken access control - the Autorize workflow, free
+
+New in v0.5. The Autorize workflow is how professionals hunt BOLA/IDOR: request each URL as a privileged role and as a low-privilege role, then compare. Scripted:
+
+    summit authorize https://app.local/admin?user=1 \
+      --role 'admin=Cookie: session=admintoken' \
+      --role 'user=Cookie: session=usertoken'
+
+Verdicts per URL: `enforced` (roles differ - working authz), `broken` (the low-privilege role receives an identical response - critical, `confirmed`), `partial` (same status, different body - worth a human look, `potential`). Measured on the demo app: the admin panel serves salaries to both roles, caught as `confirmed`.
+
+## Hidden parameter mining - Param Miner's approach, free
+
+New in v0.5. Servers read parameters the HTML never mentions: debug switches, feature flags, internal overrides. `summit mine` replays the URL with ~70 candidate names, each carrying a unique marker:
+
+    summit mine https://app.local/debug
+
+A candidate is reported only when something objectively changed: the marker is reflected (`confirmed`) or status/size shifted meaningfully (`potential`). Measured on the demo app: the undocumented `debug` switch is found as `confirmed`, and the other ~70 candidates stay silent - zero noise.
+
+## OpenAPI-driven scanning
+
+New in v0.5. Modern APIs ship their own attack-surface map. Point summit at the spec and every documented endpoint becomes a target - path params filled from examples and defaults, no crawling, no guessing:
+
+    summit scan https://api.local --openapi api-spec.json
+
+Measured on the demo: the spec alone leads the engine to the seeded SQL injection and XSS. JSON specs natively; YAML specs need converting first (the dependency list stays at exactly one).
+
 ## Rate limiting, timeouts and retries
 
 - `--rate 5` - hard ceiling of 5 requests/second across all worker threads (thread-safe slot queue; measured: 12 requests paced to 2.20s, unlimited runs the same 12 in 0.02s).
@@ -234,6 +265,9 @@ False positives waste your triage time. False negatives get clients breached. Su
 | WAF filter bypass | active | high | tampered payload lands decoded -> `confirmed` |
 | Host header injection | active | high | marker domain echoed vs baseline -> `confirmed` |
 | CORS origin reflection | active | high | arbitrary origin reflected + credentials -> `confirmed` |
+| Broken access control (BOLA/IDOR) | authorize | critical | identical response for low-privilege role -> `confirmed` |
+| Hidden parameter (reflected) | mine | medium | unique marker reflected -> `confirmed` |
+| Hidden parameter (behavior) | mine | low | status/size shift -> `potential` |
 | Open redirect | active | medium | 3xx Location to probe host -> `confirmed` |
 | Path traversal | active | high | OS file indicators -> `confirmed` |
 | Link to dead domain (hijack) | linkcheck | high | DNS failure, verified twice -> `confirmed` |
@@ -253,6 +287,9 @@ False positives waste your triage time. False negatives get clients breached. Su
 | Findings carry confidence labels | yes | partial | partial |
 | Broken link hijacking built in | yes | add-on | paid extension |
 | WAF detection + bypass probing | built in | partial | partial |
+| Authorization testing (Autorize-style) | built in, scriptable | add-on | paid workflows |
+| Hidden parameter mining (Param Miner-style) | built in | add-on | add-on |
+| OpenAPI-driven scanning | built in | add-on | add-on |
 | Rate limiting | built in, thread-safe | add-on | paid |
 | JWT/encoder toolkit | built in | add-on | built in |
 | Takeover fingerprints, host header, CORS | built in | add-ons | add-ons |

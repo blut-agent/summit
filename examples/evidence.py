@@ -195,6 +195,51 @@ def main() -> int:
             is_outdated("0.3.0", "0.10.0") and not is_outdated("1.0.0", "0.9.9"),
             "is_outdated('0.3.0', '0.10.0') -> True; is_outdated('1.0.0', '0.9.9') -> False",
         )
+
+        # --- 9. authorize: the admin panel must be caught serving a low-privilege role
+        from summit.authorize import Role, findings_from, run_authorize  # noqa: E402
+        auth_results = run_authorize(
+            client,
+            [f"{BASE}/admin?user=1"],
+            Role("admin", {"Cookie": "session=admin-token"}),
+            Role("user", {"Cookie": "session=user-token"}),
+        )
+        auth_findings = findings_from(auth_results)
+        claim(
+            "broken access control: admin panel served identically to a low-privilege role",
+            auth_results and auth_results[0].verdict == "broken" and auth_findings
+            and auth_findings[0].severity == "critical",
+            f"verdict={auth_results[0].verdict if auth_results else 'none'}; "
+            f"finding={auth_findings[0].title if auth_findings else 'none'}",
+        )
+
+        # --- 10. param miner: the undocumented debug parameter must be discovered,
+        #         and the ~70 other candidates must stay quiet
+        from summit.paramminer import mine  # noqa: E402
+        mined = mine(client, f"{BASE}/debug")
+        reflected = [f for f in mined if f.check_id == "paramminer-reflected" and f.param == "debug"]
+        claim(
+            "hidden parameter mining finds the undocumented debug parameter, zero noise",
+            len(reflected) == 1 and all(f.param == "debug" for f in mined),
+            f"{len(mined)} finding(s): {sorted(f.param for f in mined)} (all confirmed reflections)",
+        )
+
+        # --- 11. openapi-driven scan finds seeded SQLi without any crawling
+        from summit.openapi import load_spec, spec_pages  # noqa: E402
+        spec = load_spec(str(Path(__file__).resolve().parent / "openapi.json"))
+        # the spec's declared server points at the standard demo port; this
+        # runner uses its own port, which is exactly what base_url is for
+        api_result = spec_pages(client, spec, base_url=BASE)
+        api_engine = ScanEngine(client, workers=8, linkcheck_enabled=False)
+        api_findings = api_engine.scan(api_result)
+        api_ids = {f.check_id for f in api_findings}
+        claim(
+            "openapi-driven scan: spec alone leads the engine to seeded SQLi and XSS",
+            "sqli-error" in api_ids and "xss-reflection" in api_ids,
+            f"{len(api_result['pages'])} spec target(s) scanned -> {len(api_findings)} findings, "
+            f"sqli-error={'yes' if 'sqli-error' in api_ids else 'NO'}, "
+            f"xss-reflection={'yes' if 'xss-reflection' in api_ids else 'NO'}",
+        )
     finally:
         server.shutdown()
 

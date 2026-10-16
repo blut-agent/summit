@@ -5,10 +5,13 @@ import json
 from pathlib import Path
 
 from . import __version__
+from .authorize import findings_from, parse_role, run_authorize
 from .crawl.spider import Spider
 from .fuzz.dirbuster import fuzz
 from .http.client import HttpClient
 from .http.models import HttpRequest
+from .openapi import load_spec, spec_pages
+from .paramminer import mine
 from .proxy.server import ProxyServer
 from .recon import missing_tools, render_report, run_recon
 from .report.writer import write_console, write_html, write_json
@@ -38,6 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     scan = sub.add_parser("scan", help="crawl a target and run passive + active checks")
     scan.add_argument("url", help="target URL, e.g. https://testsite.local")
+    scan.add_argument("--openapi", dest="openapi_path", help="scan an OpenAPI/JSON spec instead of crawling (paths become targets)")
     scan.add_argument("--depth", type=int, default=3, help="max crawl depth (default 3)")
     scan.add_argument("--max-pages", type=int, default=50, help="max pages to visit (default 50)")
     scan.add_argument("--no-active", action="store_true", help="skip active checks (passive only)")
@@ -49,6 +53,19 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--timeout", type=float, default=10.0, help="request timeout in seconds")
     scan.add_argument("--json", dest="json_path", help="write a JSON report to this path")
     scan.add_argument("--html", dest="html_path", help="write an HTML report to this path")
+
+    mine_p = sub.add_parser("mine", help="discover hidden parameters on one URL (Param Miner approach)")
+    mine_p.add_argument("url")
+    mine_p.add_argument("--workers", type=int, default=8)
+    mine_p.add_argument("--timeout", type=float, default=10.0)
+    mine_p.add_argument("--json", dest="json_path", help="write findings as JSON")
+
+    auth = sub.add_parser("authorize", help="compare two roles per URL - broken access control (Autorize workflow)")
+    auth.add_argument("urls", nargs="+", help="URLs to test (test each with both roles)")
+    auth.add_argument("--role", dest="roles", action="append", required=True,
+                      help="role spec 'name=Header: value', repeatable; first role = privileged baseline, e.g. --role 'admin=Cookie: session=abc'")
+    auth.add_argument("--timeout", type=float, default=10.0)
+    auth.add_argument("--json", dest="json_path", help="write findings as JSON")
 
     fuzz_p = sub.add_parser("fuzz", help="brute-force paths on a target")
     fuzz_p.add_argument("url")
@@ -113,14 +130,19 @@ def _cmd_install_tools() -> int:
 def _cmd_scan(args: argparse.Namespace) -> int:
     print(BANNER.format(version=__version__))
     client = HttpClient(timeout=args.timeout, delay=args.delay, rate=args.rate, retries=args.retries)
-    spider = Spider(client, max_depth=args.depth, max_pages=args.max_pages, delay=args.delay)
-    print(f"[*] crawling {args.url} ...")
-    result = spider.crawl(args.url)
-    print(
-        f"[*] visited {len(result['visited'])} page(s), "
-        f"{len(result['forms'])} form(s), {len(result['external_links'])} outbound link(s), "
-        f"{len(result['errors'])} request error(s)"
-    )
+    if args.openapi_path:
+        spec = load_spec(args.openapi_path)
+        result = spec_pages(client, spec)
+        print(f"[*] openapi spec loaded: {len(result['pages'])} target(s), {len(result['errors'])} error(s)")
+    else:
+        spider = Spider(client, max_depth=args.depth, max_pages=args.max_pages, delay=args.delay)
+        print(f"[*] crawling {args.url} ...")
+        result = spider.crawl(args.url)
+        print(
+            f"[*] visited {len(result['visited'])} page(s), "
+            f"{len(result['forms'])} form(s), {len(result['external_links'])} outbound link(s), "
+            f"{len(result['errors'])} request error(s)"
+        )
     for error in result["errors"][:5]:
         print(f"[!] {error}")
 
@@ -183,6 +205,44 @@ def _cmd_repeater(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_mine(args: argparse.Namespace) -> int:
+    print(BANNER.format(version=__version__))
+    client = HttpClient(timeout=args.timeout)
+    print(f"[*] mining hidden parameters on {args.url} ...")
+    findings = mine(client, args.url, workers=args.workers)
+    print(write_console(findings, args.url))
+    if args.json_path:
+        write_json(findings, args.json_path)
+        print(f"[*] JSON report written to {args.json_path}")
+    return 0
+
+
+def _cmd_authorize(args: argparse.Namespace) -> int:
+    print(BANNER.format(version=__version__))
+    client = HttpClient(timeout=args.timeout)
+    try:
+        roles = [parse_role(spec) for spec in args.roles]
+    except ValueError as exc:
+        print(f"[!] {exc}")
+        return 1
+    if len(roles) < 2:
+        print("[!] authorize needs at least two roles - first is the privileged baseline")
+        return 1
+    privileged, other = roles[0], roles[1]
+    print(f"[*] testing {len(args.urls)} URL(s): '{privileged.name}' vs '{other.name}'")
+    results = run_authorize(client, args.urls, privileged, other)
+    for result in results:
+        print(f"  [{result.verdict.upper()}] {result.url}")
+        if result.verdict == "broken":
+            print(f"      {other.name} sees exactly what {privileged.name} sees (HTTP {result.privileged.status}, {len(result.privileged.body)}B)")
+    findings = findings_from(results)
+    print(write_console(findings, f"{len(args.urls)} URL(s), {privileged.name} vs {other.name}"))
+    if args.json_path:
+        write_json(findings, args.json_path)
+        print(f"[*] JSON report written to {args.json_path}")
+    return 0
+
+
 def _cmd_recon(args: argparse.Namespace) -> int:
     print(BANNER.format(version=__version__))
     missing = missing_tools()
@@ -237,6 +297,10 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_proxy(args)
         if args.command == "repeater":
             return _cmd_repeater(args)
+        if args.command == "mine":
+            return _cmd_mine(args)
+        if args.command == "authorize":
+            return _cmd_authorize(args)
         if args.command == "recon":
             return _cmd_recon(args)
         if args.command == "encode":
