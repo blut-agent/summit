@@ -6,6 +6,21 @@ from ..http.client import HttpClient
 from ..http.models import HttpRequest
 
 SEVERITIES = ("info", "low", "medium", "high", "critical")
+SEVERITY_RANK = {name: index for index, name in enumerate(SEVERITIES)}
+
+
+def min_severity(severity: str) -> str:
+    """Smallest severity name whose rank covers `severity` (for --min-severity)."""
+    return severity if severity in SEVERITY_RANK else "info"
+
+
+def filter_by_severities(findings: list["Finding"], allowed: set[str]) -> list["Finding"]:
+    return [f for f in findings if f.severity in allowed]
+
+
+def filter_by_min_severity(findings: list["Finding"], minimum: str) -> list["Finding"]:
+    floor = SEVERITY_RANK.get(minimum, 0)
+    return [f for f in findings if SEVERITY_RANK.get(f.severity, 0) >= floor]
 
 # Central CWE mapping: every check_id gets its CWE so findings are
 # referenceable without each module repeating the constant.

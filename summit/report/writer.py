@@ -32,7 +32,17 @@ def write_json(findings, path: str) -> str:
 
 
 def write_console(findings, target: str) -> str:
-    lines = ["", f"Summit report - {target}", "=" * 60, f"Total findings: {len(findings)}", ""]
+    from collections import Counter
+
+    counts = Counter(f.severity for f in findings)
+    breakdown = ", ".join(f"{severity} {counts[severity]}" for severity in SEVERITY_ORDER if counts[severity])
+    lines = [
+        "",
+        f"Summit report - {target}",
+        "=" * 60,
+        f"Total findings: {len(findings)}" + (f"  ({breakdown})" if breakdown else ""),
+        "",
+    ]
     current_severity = None
     for finding in sort_findings(findings):
         if finding.severity != current_severity:
@@ -74,6 +84,13 @@ def write_html(findings, path: str, target: str) -> str:
             "</tr>"
         )
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    from collections import Counter
+
+    counts = Counter(f.severity for f in findings)
+    summary_cells = "".join(
+        f"<td>{severity.upper()}: {counts[severity]}</td>"
+        for severity in ("critical", "high", "medium", "low", "info")
+    )
     document = f"""<!doctype html>
 <html>
 <head>
@@ -83,6 +100,8 @@ def write_html(findings, path: str, target: str) -> str:
 body {{ font-family: -apple-system, 'Segoe UI', sans-serif; margin: 2rem; color: #111; }}
 h1 {{ font-size: 1.4rem; }}
 table {{ border-collapse: collapse; width: 100%; }}
+table.summary {{ width: auto; margin-bottom: 1rem; }}
+table.summary td {{ font-weight: 600; background: #f9fafb; }}
 td, th {{ border-bottom: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; font-size: 0.9rem; }}
 .url {{ font-family: monospace; font-size: 0.8rem; word-break: break-all; }}
 .sev {{ color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }}
@@ -91,6 +110,7 @@ td, th {{ border-bottom: 1px solid #e5e7eb; padding: 8px 10px; text-align: left;
 <body>
 <h1>Summit scan report</h1>
 <p>Target: {html.escape(target)} &middot; Generated: {generated} &middot; Findings: {len(findings)}</p>
+<table class="summary"><tr>{summary_cells}</tr></table>
 <table>
 <tr><th>Severity</th><th>Finding</th><th>URL</th><th>Check</th></tr>
 {''.join(rows)}

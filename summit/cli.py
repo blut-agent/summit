@@ -15,6 +15,7 @@ from .paramminer import mine
 from .proxy.server import ProxyServer
 from .recon import missing_tools, render_report, run_recon
 from .report.writer import write_console, write_html, write_json
+from .scan.core import SEVERITIES, filter_by_min_severity, filter_by_severities
 from .scan.engine import ScanEngine
 from .toolkit import decode_text, encode_text
 from .tls import audit as tls_audit
@@ -54,6 +55,9 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--timeout", type=float, default=10.0, help="request timeout in seconds")
     scan.add_argument("--json", dest="json_path", help="write a JSON report to this path")
     scan.add_argument("--html", dest="html_path", help="write an HTML report to this path")
+    scan.add_argument("--severity", default=None, help="only report these severities, comma separated: high,critical")
+    scan.add_argument("--min-severity", dest="min_severity", default=None,
+                      choices=list(SEVERITIES), help="report findings at or above this severity")
 
     mine_p = sub.add_parser("mine", help="discover hidden parameters on one URL (Param Miner approach)")
     mine_p.add_argument("url")
@@ -134,6 +138,27 @@ def _cmd_install_tools() -> int:
     return 0
 
 
+def _severity_filters(args: argparse.Namespace):
+    """Parse --severity / --min-severity into (allowed set, floor name)."""
+    allowed = None
+    if getattr(args, "severity", None):
+        allowed = {token.strip().lower() for token in args.severity.split(",") if token.strip()}
+        unknown = allowed - set(SEVERITIES)
+        if unknown:
+            print(f"[!] unknown severity value(s): {', '.join(sorted(unknown))} - valid: {', '.join(SEVERITIES)}")
+            raise SystemExit(1)
+    return allowed, getattr(args, "min_severity", None)
+
+
+def _apply_severity_filters(findings, args: argparse.Namespace):
+    allowed, minimum = _severity_filters(args)
+    if allowed:
+        findings = filter_by_severities(findings, allowed)
+    if minimum:
+        findings = filter_by_min_severity(findings, minimum)
+    return findings
+
+
 def _cmd_scan(args: argparse.Namespace) -> int:
     print(BANNER.format(version=__version__))
     client = HttpClient(timeout=args.timeout, delay=args.delay, rate=args.rate, retries=args.retries)
@@ -160,6 +185,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         linkcheck_enabled=not args.skip_linkcheck,
     )
     findings = engine.scan(result)
+    findings = _apply_severity_filters(findings, args)
     print(
         f"[*] {client.request_count} request(s) in {engine.elapsed:.1f}s "
         f"(workers={args.workers}, rate={args.rate or 'unlimited'}, retries={args.retries})"
