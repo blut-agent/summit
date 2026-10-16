@@ -88,9 +88,8 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 <summary>Latest measured run (<code>python examples/evidence.py</code>)</summary>
 
 ```text
-[PASS] full scan: 12 seeded check families detected, zero false positives
-       37 findings in 0.7s (126 requests), missing=none, control link flagged=no,
-       11 finding(s) carry confidence=confirmed
+[PASS] full scan: 16 seeded check families detected, zero false positives
+       53 findings in 22.9s (344 requests), missing=none, control link flagged=no, 19 finding(s) carry confidence=confirmed
 [PASS] resource takeover fingerprint detected on the target's own 404
        Possible AWS S3 resource takeover | AWS S3: 'nosuchbucket'
 [PASS] host header injection: marker domain echoed back by the app
@@ -98,26 +97,37 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 [PASS] CORS reflects an arbitrary origin with credentials allowed
        ACAO: https://summit-cors-probe.example; ACAC: true
 [PASS] WAF bypass: naive filter blocks, tampered payload lands decoded
-       raw payload -> HTTP 403 (blocked); URL-encoded once -> HTTP 200,
-       payload reflected decoded: True
+       raw payload -> HTTP 403 (blocked); URL-encoded once -> HTTP 200, payload reflected decoded: True
 [PASS] CAPTCHA challenge detected (reported, not solved)
        /login -> reCAPTCHA via marker 'recaptcha/api.js'
 [PASS] rate limiting: --rate 5 paces 12 requests to ~2.2s; unlimited runs free
-       12 requests at rate 5 -> 2.20s (theoretical floor: 2.2s);
-       12 requests unlimited -> 0.02s
+       12 requests at rate 5 -> 2.20s (theoretical floor: 2.2s); 12 requests unlimited -> 0.02s
 [PASS] concurrency on a latency-bearing target: 8 workers vs serial
-       40 requests x 25ms latency: serial 1.46s -> parallel 0.18s (8.1x speedup)
+       40 requests x 25ms latency: serial 1.33s -> parallel 0.18s (7.3x speedup)
 [PASS] smart prioritizer ranks known-injectable parameters first
-       probing starts with: [('query', 'search?query=laptop'), ('id', 'user?id=1'), ...]
+       probing starts with: [('query', 'search?query=laptop'), ('id', 'user?id=1'), ('url', 'example.com')]
 [PASS] toolkit decodes JWT header/payload and states the signature is unverified
+       signature NOT verified - decoding only
 [PASS] update check compares versions numerically (0.3 < 0.10)
+       is_outdated('0.3.0', '0.10.0') -> True; is_outdated('1.0.0', '0.9.9') -> False
 [PASS] broken access control: admin panel served identically to a low-privilege role
        verdict=broken; finding=Broken access control (BOLA/IDOR candidate)
 [PASS] hidden parameter mining finds the undocumented debug parameter, zero noise
        1 finding(s): ['debug'] (all confirmed reflections)
 [PASS] openapi-driven scan: spec alone leads the engine to seeded SQLi and XSS
+       2 spec target(s) scanned -> 10 findings, sqli-error=yes, xss-reflection=yes
+[PASS] OS command injection: marker executed and echoed by the server
+       semicolon: exec marker x2, control marker x1 | CWE-78
+[PASS] server-side template injection: {{7*7}} came back as 49
+       Jinja2/Twig: {{7*7}} -> 49 | CWE-1336
+[PASS] CRLF injection: X-Summit-CRLF header materialized in the response
+       X-Summit-CRLF: injected | CWE-113
+[PASS] sensitive file exposure: /.env confirmed by content signature
+       content signature: 'APP_KEY=' | CWE-538
+[PASS] CVE detection: Apache/2.4.49 banner maps to known CVEs
+       detect_cves('Apache/2.4.49') -> ['CVE-2021-41773', 'CVE-2021-42013']
 
-evidence summary: 14/14 claims verified
+evidence summary: 19/19 claims verified
 ```
 
 </details>
@@ -163,6 +173,8 @@ Shared flags on scanning commands: `--workers`, `--rate` (requests/second ceilin
 **OpenAPI-driven scanning.** Every documented endpoint becomes a target, with path params filled from examples and defaults - no crawling, no guessing. Measured: the spec alone leads the engine to the seeded SQLi and XSS. JSON specs natively; YAML needs converting first (the dependency list stays at exactly one).
 
 **WAF detection and bypass.** Tight vendor signatures for Cloudflare, AWS WAF, Akamai, Imperva, ModSecurity, Sucuri, F5 and Wordfence. When a filter blocks standard payloads, tamper variants (single/double URL-encoding, comment splitting, case alternation) are tried - and a bypass is reported only when the original payload lands **decoded** in the response. Measured: raw payload -> HTTP 403; encoded once -> HTTP 200, decoded.
+
+**OS command injection, SSTI, CRLF, sensitive files.** New in v0.6, each with a hard confirmation rule: OS command injection uses an exec marker plus a control probe (a server that merely reflects input shows both markers; a server that executes shows the exec marker more often - measured `x2 vs x1`), SSTI requires `{{7*7}}` to come back as `49`, CRLF requires our injected header to materialize, and sensitive files (`.env`, `.git/config`, backups) require a content signature - never just a 200. Every finding is tagged with its CWE automatically (CWE-78, CWE-1336, CWE-113, CWE-538), and version banners are matched against an offline CVE database (spoofable banners stay `potential`).
 
 **CAPTCHA: detect, do not solve.** reCAPTCHA, hCaptcha, Cloudflare Turnstile and challenge pages are detected and reported. Solving them automatically is out of scope by design - that line does not move.
 
@@ -214,6 +226,11 @@ False positives waste your triage time. False negatives get clients breached. Su
 | WAF filter bypass | active | high | tampered payload lands decoded -> `confirmed` |
 | Host header injection | active | high | marker domain echoed vs baseline -> `confirmed` |
 | CORS origin reflection | active | high | arbitrary origin reflected + credentials -> `confirmed` |
+| OS command injection | active | critical | exec marker outruns control marker -> `confirmed`, CWE-78 |
+| Server-side template injection (RCE) | active | critical | `{{7*7}}` evaluates to 49 -> `confirmed`, CWE-1336 |
+| CRLF injection / response splitting | active | high | injected header materializes -> `confirmed`, CWE-113 |
+| Sensitive file exposure (.env, .git) | passive-origin | high | content signature, not just a 200 -> `confirmed`, CWE-538 |
+| Known CVE in version banner | passive | high | offline CVE database match -> `potential` (banners spoof) |
 | Open redirect | active | medium | 3xx Location to probe host -> `confirmed` |
 | Path traversal | active | high | OS file indicators -> `confirmed` |
 | Broken access control (BOLA/IDOR) | authorize | critical | identical response for low-privilege role -> `confirmed` |
@@ -242,7 +259,7 @@ False positives waste your triage time. False negatives get clients breached. Su
 | Rate limiting | built in, thread-safe | add-on | paid |
 | JWT/encoder toolkit | built in | add-on | built in |
 | Takeover fingerprints, host header, CORS | built in | add-ons | add-ons |
-| Codebase you can audit in an afternoon | ~3.2k lines | large | closed source |
+| Codebase you can audit in an afternoon | ~3.6k lines | large | closed source |
 | TLS-intercepting proxy | on the roadmap | yes | yes |
 
 We are not trying to replace either of them. Summit is the small tool you drop into a pipeline or onto a VPS box, and the codebase you can actually read line by line.

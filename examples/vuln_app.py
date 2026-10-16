@@ -26,12 +26,17 @@ Seeded vulnerabilities:
     - CORS reflection     /api?user=1      (reflects any Origin, credentials allowed)
     - broken authz        /admin?user=1    (admin panel served to any role - BOLA demo)
     - hidden parameter    /debug           (undocumented debug param, reflected)
+    - OS command inject   /ping?host=      (simulated shell - deterministic, no real subprocess)
+    - SSTI / RCE          /greet?name=     (naive template evaluates {{7*7}})
+    - CRLF injection      /goto?to=        (Location header accepts CRLF)
+    - sensitive file      /.env            (200 with APP_KEY/DB_PASSWORD content)
     - missing security headers + version disclosure on every response
 
 The "partner" link (https://example.com) is a live negative control: a
 healthy outbound link (HTTP 200) must NOT be reported.
 """
 
+import re
 import sqlite3
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -54,6 +59,10 @@ PAGE = """<!doctype html>
   <li><a href="/old-bucket">old-bucket</a></li>
   <li><a href="/reset?user=demo">reset</a></li>
   <li><a href="/api?user=1">api</a></li>
+  <li><a href="/ping?host=demo.local">ping</a></li>
+  <li><a href="/greet?name=world">greet</a></li>
+  <li><a href="/goto?to=/">goto</a></li>
+  <li><a href="/.env">env</a></li>
   <li><a href="https://summit-demo-dead.example/old-promo">summer promo</a></li>
   <li><a href="https://example.com/">partner</a></li>
 </ul>
@@ -240,6 +249,44 @@ class DemoHandler(BaseHTTPRequestHandler):
                 )
             else:
                 self._html("<html><body><p>Normal page</p></body></html>")
+
+        elif path == "/ping":
+            # Vulnerable: simulates a shell wrapper. Everything after a shell
+            # separator is treated as a second command - but only `echo <token>`
+            # is implemented, so the demo is deterministic and never spawns a
+            # real process.
+            host = query.get("host", "")
+            lines = [f"Pinging {host}..."]
+            match = re.search(r"(?:;|\||&&|&|`|\$\()\s*echo\s+([A-Za-z0-9\-]+)", host)
+            if match:
+                lines.append(match.group(1))
+            self._html("<html><body><pre>" + "\n".join(lines) + "</pre></body></html>")
+
+        elif path == "/greet":
+            # Vulnerable: a naive template engine that evaluates simple
+            # arithmetic inside {{ }} - the classic SSTI canary condition.
+            name = query.get("name", "")
+            name = re.sub(r"\{\{(\d+\s*[\+\-\*/]\s*\d+)\}\}", lambda m: str(eval(m.group(1))), name)
+            self._html(f"<html><body><h1>Hello {name}</h1><p>Welcome back.</p></body></html>")
+
+        elif path == "/goto":
+            # Vulnerable: redirects to a user-supplied target without
+            # stripping CRLF - response splitting demo.
+            target = query.get("to", "/")
+            self.send_response(302)
+            self.send_header("Location", target)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        elif path == "/.env":
+            # Vulnerable: environment file left in the web root, served with
+            # its real content (status-code-only scanners miss the difference).
+            body = (
+                "APP_KEY=base64:summitDemoKeyOnPurpose\n"
+                "DB_PASSWORD=summit-demo-password\n"
+                "DB_HOST=127.0.0.1\n"
+            )
+            self._html(body)
 
         elif path == "/redirect":
             # Vulnerable: unvalidated redirect target.

@@ -49,7 +49,7 @@ def main() -> int:
         client = HttpClient(timeout=10)
 
         # --- 1. full scan: every seeded check fires, negative control stays quiet
-        spider = Spider(client, max_depth=1, max_pages=10)
+        spider = Spider(client, max_depth=1, max_pages=30)
         spider_result = spider.crawl(BASE)
         engine = ScanEngine(client, workers=8)
         findings = engine.scan(spider_result)
@@ -58,12 +58,13 @@ def main() -> int:
             "sqli-error", "sqli-boolean", "xss-reflection", "open-redirect",
             "path-traversal", "linkcheck-dead-domain", "waf-bypass", "waf-detected", "captcha-challenge",
             "takeover-signature", "host-header-injection", "cors-reflection",
+            "os-command-injection", "ssti", "crlf-injection", "sensitive-file",
         }
         missing = expected - check_ids
         control_fp = [f.url for f in findings if f.url.startswith("https://example.com")]
         confirmed = sum(1 for f in findings if f.confidence == "confirmed")
         claim(
-            "full scan: 12 seeded check families detected, zero false positives",
+            "full scan: 16 seeded check families detected, zero false positives",
             not missing and not control_fp,
             f"{len(findings)} findings in {engine.elapsed:.1f}s ({client.request_count} requests), "
             f"missing={sorted(missing) if missing else 'none'}, control link flagged={control_fp or 'no'}, "
@@ -239,6 +240,49 @@ def main() -> int:
             f"{len(api_result['pages'])} spec target(s) scanned -> {len(api_findings)} findings, "
             f"sqli-error={'yes' if 'sqli-error' in api_ids else 'NO'}, "
             f"xss-reflection={'yes' if 'xss-reflection' in api_ids else 'NO'}",
+        )
+
+        # --- 12. OS command injection (from the full scan above)
+        from summit.scan.core import cwe_for  # noqa: E402
+        os_cmd = next((f for f in findings if f.check_id == "os-command-injection"), None)
+        claim(
+            "OS command injection: marker executed and echoed by the server",
+            os_cmd is not None and os_cmd.confidence == "confirmed" and cwe_for("os-command-injection") == "CWE-78",
+            f"{os_cmd.evidence if os_cmd else 'not found'} | {cwe_for('os-command-injection')}",
+        )
+
+        # --- 13. SSTI: {{7*7}} evaluated to 49
+        ssti = next((f for f in findings if f.check_id == "ssti"), None)
+        claim(
+            "server-side template injection: {{7*7}} came back as 49",
+            ssti is not None and ssti.confidence == "confirmed" and "49" in ssti.evidence,
+            f"{ssti.evidence if ssti else 'not found'} | {cwe_for('ssti')}",
+        )
+
+        # --- 14. CRLF injection: our injected header materialized
+        crlf = next((f for f in findings if f.check_id == "crlf-injection"), None)
+        claim(
+            "CRLF injection: X-Summit-CRLF header materialized in the response",
+            crlf is not None and crlf.confidence == "confirmed" and "injected" in crlf.evidence,
+            f"{crlf.evidence if crlf else 'not found'} | {cwe_for('crlf-injection')}",
+        )
+
+        # --- 15. sensitive file: content signature, not just a 200
+        env = next((f for f in findings if f.check_id == "sensitive-file"), None)
+        claim(
+            "sensitive file exposure: /.env confirmed by content signature",
+            env is not None and env.confidence == "confirmed" and "APP_KEY" in env.evidence,
+            f"{env.evidence if env else 'not found'} | {cwe_for('sensitive-file')}",
+        )
+
+        # --- 16. CVE detection from version banners (offline database)
+        from summit.cve import detect_cves  # noqa: E402
+        hits = detect_cves("Apache/2.4.49")
+        cve_ids = {h["cve"] for h in hits}
+        claim(
+            "CVE detection: Apache/2.4.49 banner maps to known CVEs",
+            "CVE-2021-41773" in cve_ids and "CVE-2021-42013" in cve_ids,
+            f"detect_cves('Apache/2.4.49') -> {sorted(cve_ids)}",
         )
     finally:
         server.shutdown()

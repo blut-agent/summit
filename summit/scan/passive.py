@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from ..captcha import check_challenge
+from ..cve import detect_cves
 from ..http.models import HttpResponse
 from ..takeover import check_takeover
 from ..waf import detect_waf
@@ -148,6 +149,24 @@ def check_server_disclosure(response: HttpResponse) -> list[Finding]:
                 remediation="Remove or reduce the Server header.",
             )
         )
+        # Version banners can be matched against known CVEs - marked
+        # `potential` because banners are trivially spoofed.
+        for entry in detect_cves(server):
+            findings.append(
+                Finding(
+                    check_id="cve-detected",
+                    title=f"Known CVE matches banner version: {entry['cve']}",
+                    severity="high",
+                    url=url,
+                    confidence="potential",
+                    cves=[entry["cve"]],
+                    detail=f"Server header advertises version {entry['version']}, which is affected by "
+                    f"{entry['cve']}: {entry['description']}. Banners can be spoofed - confirm the "
+                    "real version before reporting.",
+                    evidence=f"{server} -> {entry['cve']}",
+                    remediation="Patch to a fixed release, or confirm the banner is intentionally spoofed.",
+                )
+            )
     powered = response.header("x-powered-by")
     if powered:
         findings.append(
@@ -160,6 +179,20 @@ def check_server_disclosure(response: HttpResponse) -> list[Finding]:
                 remediation="Remove the X-Powered-By header.",
             )
         )
+        for entry in detect_cves(powered):
+            findings.append(
+                Finding(
+                    check_id="cve-detected",
+                    title=f"Known CVE matches banner version: {entry['cve']}",
+                    severity="high",
+                    url=url,
+                    confidence="potential",
+                    cves=[entry["cve"]],
+                    detail=f"X-Powered-By advertises version {entry['version']}, affected by {entry['cve']}: {entry['description']}.",
+                    evidence=f"{powered} -> {entry['cve']}",
+                    remediation="Patch to a fixed release, or remove the banner.",
+                )
+            )
     return findings
 
 

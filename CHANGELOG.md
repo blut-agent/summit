@@ -4,6 +4,31 @@ All notable changes to summit are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [v0.6.0] - 2026-10-16
+
+### Added
+
+- OS command injection check (CWE-78): echo-based probes across seven shell
+  separators with a control probe - a server that merely reflects input shows
+  both markers, a server that executes shows the exec marker more often. Only
+  that asymmetry produces a finding. No time-based `sleep` payloads, ever.
+- Server-side template injection check (CWE-1336, an RCE class): `{{7*7}}`,
+  `${7*7}`, `<%= 7*7 %>`, `{7*7}` - confirmed only when the computed value
+  (49) is present and absent from the baseline.
+- CRLF injection / HTTP response splitting check (CWE-113): an injected header
+  must materialize in the response.
+- Sensitive file exposure check (CWE-538): `.env`, `.git/config`, database
+  dumps and config backups - confirmed by content signature, never by status
+  code alone. Runs once per scan against the target origin.
+- CWE tagging on every finding (central map, 30+ check ids) and CVE detection
+  from version banners (offline curated database: Apache, nginx, OpenSSH, PHP,
+  Tomcat). CVE findings stay `potential` - banners are trivially spoofed.
+- Reports (console, JSON, HTML) now include CWE and CVE references.
+- Demo app gained `/ping` (simulated shell, deterministic - no real
+  subprocess), `/greet` (naive template engine), `/goto` (CRLF-reflecting
+  redirect) and `/.env`.
+- Evidence runner grew to 19 claims.
+
 ## [v0.5.0] - 2026-10-16
 
 ### Added

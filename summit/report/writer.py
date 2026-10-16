@@ -4,6 +4,8 @@ import html
 import json
 from datetime import datetime, timezone
 
+from ..scan.core import CWE_BY_CHECK_ID
+
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 SEVERITY_COLORS = {
     "critical": "#7f1d1d",
@@ -37,7 +39,10 @@ def write_console(findings, target: str) -> str:
             current_severity = finding.severity
             lines.append(f"[{current_severity.upper()}]")
         confidence_tag = "" if finding.confidence == "potential" else f"  [{finding.confidence}]"
-        lines.append(f"  {finding.title}  ({finding.check_id}){confidence_tag}")
+        cwe = finding.cwe or CWE_BY_CHECK_ID.get(finding.check_id, "")
+        cwe_tag = f"  {cwe}" if cwe else ""
+        cve_tag = f"  ({', '.join(finding.cves)})" if finding.cves else ""
+        lines.append(f"  {finding.title}  ({finding.check_id}){confidence_tag}{cwe_tag}{cve_tag}")
         location = finding.url + (f"  param: {finding.param}" if finding.param else "")
         lines.append(f"    URL: {location}")
         if finding.evidence:
@@ -50,12 +55,18 @@ def write_html(findings, path: str, target: str) -> str:
     rows = []
     for finding in sort_findings(findings):
         color = SEVERITY_COLORS.get(finding.severity, "#374151")
+        cwe = finding.cwe or CWE_BY_CHECK_ID.get(finding.check_id, "")
+        meta = html.escape(finding.check_id)
+        if cwe:
+            meta += f" · {html.escape(cwe)}"
+        if finding.cves:
+            meta += f" · {html.escape(', '.join(finding.cves))}"
         rows.append(
             "<tr>"
             f"<td><span class='sev' style='background:{color}'>{html.escape(finding.severity.upper())}</span></td>"
             f"<td>{html.escape(finding.title)}</td>"
             f"<td class='url'>{html.escape(finding.url)}</td>"
-            f"<td>{html.escape(finding.check_id)}<br><small>{html.escape(finding.confidence)}</small></td>"
+            f"<td>{meta}<br><small>{html.escape(finding.confidence)}</small></td>"
             "</tr>"
         )
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")

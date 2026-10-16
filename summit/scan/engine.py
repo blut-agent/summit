@@ -118,5 +118,20 @@ class ScanEngine:
                 except Exception as exc:
                     self.errors.append(f"linkcheck failed: {exc}")
 
+        # Sensitive-file check runs once per scan against the target origin -
+        # it is path-based, not parameter-based like the active checks.
+        if self.active:
+            pages = spider_result.get("pages", [])
+            if pages:
+                from urllib.parse import urlsplit
+                from .modules.sensitive_files import run_sensitive_files
+
+                origin = urlsplit(pages[0].request.url)
+                try:
+                    for finding in run_sensitive_files(self.client, f"{origin.scheme}://{origin.netloc}"):
+                        self.add(finding)
+                except Exception as exc:
+                    self.errors.append(f"sensitive-file check failed: {exc}")
+
         self.elapsed = time.monotonic() - started
         return self.findings

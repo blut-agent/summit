@@ -1,11 +1,53 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..http.client import HttpClient
 from ..http.models import HttpRequest
 
 SEVERITIES = ("info", "low", "medium", "high", "critical")
+
+# Central CWE mapping: every check_id gets its CWE so findings are
+# referenceable without each module repeating the constant.
+CWE_BY_CHECK_ID = {
+    "passive-security-headers": "CWE-693",
+    "passive-cookie-flags": "CWE-614",
+    "passive-error-disclosure": "CWE-209",
+    "passive-info-disclosure": "CWE-200",
+    "passive-cors": "CWE-942",
+    "passive-email-leak": "CWE-359",
+    "waf-detected": "CWE-693",
+    "captcha-challenge": "",
+    "takeover-signature": "CWE-350",
+    "sqli-error": "CWE-89",
+    "sqli-boolean": "CWE-89",
+    "xss-reflection": "CWE-79",
+    "xss-reflection-hardened": "CWE-79",
+    "waf-bypass": "CWE-693",
+    "host-header-injection": "CWE-640",
+    "cors-reflection": "CWE-942",
+    "open-redirect": "CWE-601",
+    "path-traversal": "CWE-22",
+    "authorize-bypass": "CWE-639",
+    "authorize-partial": "CWE-639",
+    "paramminer-reflected": "CWE-200",
+    "paramminer-behavior": "CWE-200",
+    "fuzz-dir": "CWE-538",
+    "linkcheck-dead-domain": "CWE-350",
+    "linkcheck-parked": "CWE-350",
+    "linkcheck-broken": "CWE-350",
+    "linkcheck-unreachable": "CWE-350",
+    "linkcheck-private-target": "CWE-918",
+    "os-command-injection": "CWE-78",
+    "ssti": "CWE-1336",
+    "crlf-injection": "CWE-113",
+    "sensitive-file": "CWE-538",
+    "cve-detected": "CWE-1104",
+}
+
+
+def cwe_for(check_id: str) -> str:
+    return CWE_BY_CHECK_ID.get(check_id, "")
 
 
 @dataclass
@@ -21,6 +63,10 @@ class Finding:
     # "confirmed" = observed fact (raw reflection, file content, fresh DB
     # error, 3xx Location). "potential" = heuristic signal.
     confidence: str = "potential"
+    # CWE identifier, resolved from check_id when the module does not set it.
+    cwe: str = ""
+    # CVE identifiers detected for this finding (e.g. from version banners).
+    cves: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {
@@ -33,6 +79,8 @@ class Finding:
             "evidence": self.evidence[:400],
             "remediation": self.remediation,
             "confidence": self.confidence,
+            "cwe": self.cwe or cwe_for(self.check_id),
+            "cves": list(self.cves),
         }
 
 
