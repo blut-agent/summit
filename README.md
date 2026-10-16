@@ -6,6 +6,7 @@
   <a href="https://github.com/pennacle-security/summit/actions/workflows/tests.yml"><img src="https://github.com/pennacle-security/summit/actions/workflows/tests.yml/badge.svg" alt="CI status"></a>
   <a href="https://github.com/pennacle-security/summit/releases"><img src="https://img.shields.io/github/v/tag/pennacle-security/summit?label=release&color=2ea44f" alt="release"></a>
   <a href="https://api.scorecard.dev/projects/github.com/pennacle-security/summit/badge"><img src="https://api.scorecard.dev/projects/github.com/pennacle-security/summit/badge" alt="OpenSSF Scorecard"></a>
+  <a href="https://www.bestpractices.dev/projects/15532"><img src="https://www.bestpractices.dev/projects/15532/badge" alt="CII Best Practices"></a>
   <a href="https://pennacle-security.github.io/summit/"><img src="https://img.shields.io/badge/docs-live-2ea44f" alt="docs"></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-3776ab" alt="python 3.10+">
   <img src="https://img.shields.io/github/license/pennacle-security/summit?color=8b949e" alt="MIT license">
