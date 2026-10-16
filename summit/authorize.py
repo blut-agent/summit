@@ -83,6 +83,16 @@ def findings_from(results: list[AuthResult]) -> list[Finding]:
     findings: list[Finding] = []
     for result in results:
         if result.verdict == "broken":
+            # Guard against the classic login-redirect false positive: if the
+            # "privileged" response is itself a redirect or an empty shell,
+            # both roles are probably bouncing off the same auth wall - there
+            # is no privileged content to leak in the first place.
+            privileged_usable = (
+                result.privileged.status == 200
+                and len(result.privileged.body) >= 100
+            )
+            if not privileged_usable:
+                continue
             findings.append(
                 Finding(
                     check_id="authorize-bypass",

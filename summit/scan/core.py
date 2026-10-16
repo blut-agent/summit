@@ -76,7 +76,7 @@ class Finding:
             "url": self.url,
             "param": self.param,
             "detail": self.detail,
-            "evidence": self.evidence[:400],
+            "evidence": self.evidence,
             "remediation": self.remediation,
             "confidence": self.confidence,
             "cwe": self.cwe or cwe_for(self.check_id),

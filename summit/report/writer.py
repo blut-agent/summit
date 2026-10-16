@@ -45,8 +45,12 @@ def write_console(findings, target: str) -> str:
         lines.append(f"  {finding.title}  ({finding.check_id}){confidence_tag}{cwe_tag}{cve_tag}")
         location = finding.url + (f"  param: {finding.param}" if finding.param else "")
         lines.append(f"    URL: {location}")
+        if finding.detail:
+            lines.append(f"    Detail: {finding.detail}")
         if finding.evidence:
-            lines.append(f"    Evidence: {finding.evidence[:200]}")
+            lines.append(f"    Evidence: {finding.evidence}")
+        if finding.remediation:
+            lines.append(f"    Fix: {finding.remediation}")
         lines.append("")
     return "\n".join(lines)
 

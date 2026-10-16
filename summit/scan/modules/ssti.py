@@ -32,7 +32,10 @@ class SstiCheck(Check):
         for engine, payload, computed in PROBES:
             request = point.request.with_query_param(point.param, payload)
             response = client.send(request)
-            if computed in response.text:
+            # The raw template must be GONE from the response (replaced by the
+            # computed value). A page that echoes `{{7*7}}` literally AND
+            # happens to contain "49" elsewhere is reflection, not evaluation.
+            if computed in response.text and payload not in response.text:
                 return [
                     Finding(
                         check_id=self.check_id,

@@ -16,7 +16,11 @@ class DemoHandler(BaseHTTPRequestHandler):
         split = urlsplit(self.path)
         query = {k: v[0] for k, v in parse_qs(split.query, keep_blank_values=True).items()}
         if split.path == "/admin":
-            body = b"<html><body><h1>Admin panel</h1><p>Salary report: admin 9500.</p></body></html>"
+            body = (
+                b"<html><body><h1>Admin panel</h1>"
+                b"<p>Salary report: admin 9500, users 3200/3100.</p>"
+                b"<p>Internal notes: acquisition planned Q3.</p></body></html>"
+            )
             self.send_response(200)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
