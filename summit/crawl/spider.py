@@ -90,7 +90,10 @@ class Spider:
                 continue
             visited.add(clean.rstrip("/"))
             try:
-                response = self.client.send(HttpRequest(method="GET", url=clean))
+                # Redirects are followed during crawling: endpoints behind a
+                # 302 are part of the attack surface, and missing them was a
+                # systematic false-negative source.
+                response = self.client.send(HttpRequest(method="GET", url=clean), allow_redirects=True)
             except Exception as exc:
                 errors.append(f"{clean}: {exc}")
                 continue

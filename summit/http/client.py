@@ -46,7 +46,7 @@ class HttpClient:
         if user_agent:
             self.session.headers["User-Agent"] = user_agent
 
-    def send(self, request: HttpRequest) -> HttpResponse:
+    def send(self, request: HttpRequest, allow_redirects: bool = False) -> HttpResponse:
         attempt = 0
         while True:
             if self.rate_limiter is not None:
@@ -64,7 +64,7 @@ class HttpClient:
                     data=request.body,
                     timeout=self.timeout,
                     verify=self.verify_tls,
-                    allow_redirects=False,
+                    allow_redirects=allow_redirects,
                 )
             except requests.RequestException:
                 if attempt < self.retries:

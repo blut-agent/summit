@@ -17,6 +17,7 @@ from .recon import missing_tools, render_report, run_recon
 from .report.writer import write_console, write_html, write_json
 from .scan.engine import ScanEngine
 from .toolkit import decode_text, encode_text
+from .tls import audit as tls_audit
 from .updates import fetch_latest_version, install_tools, is_outdated, self_update
 
 BANNER = r"""
@@ -96,6 +97,12 @@ def build_parser() -> argparse.ArgumentParser:
     dec = sub.add_parser("decode", help="decode text (b64, url, hex, jwt)")
     dec.add_argument("value")
     dec.add_argument("-f", "--format", dest="encoding", default="b64", choices=["b64", "url", "hex", "jwt"])
+
+    tls_p = sub.add_parser("tls", help="audit a host's certificate and TLS versions")
+    tls_p.add_argument("host", help="hostname or URL")
+    tls_p.add_argument("--port", type=int, default=443)
+    tls_p.add_argument("--timeout", type=float, default=10.0)
+    tls_p.add_argument("--json", dest="json_path", help="write findings as JSON")
 
     return parser
 
@@ -261,6 +268,22 @@ def _cmd_recon(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_tls(args: argparse.Namespace) -> int:
+    print(BANNER.format(version=__version__))
+    try:
+        findings = tls_audit(args.host, port=args.port, timeout=args.timeout)
+    except ConnectionError as exc:
+        print(f"[!] {exc}")
+        return 1
+    print(write_console(findings, f"{args.host}:{args.port}"))
+    if not findings:
+        print("[*] no TLS findings - certificate valid, no legacy protocol versions accepted")
+    if args.json_path:
+        write_json(findings, args.json_path)
+        print(f"[*] JSON report written to {args.json_path}")
+    return 0
+
+
 def _cmd_encode(args: argparse.Namespace) -> int:
     try:
         print(encode_text(args.value, args.encoding))
@@ -303,6 +326,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_authorize(args)
         if args.command == "recon":
             return _cmd_recon(args)
+        if args.command == "tls":
+            return _cmd_tls(args)
         if args.command == "encode":
             return _cmd_encode(args)
         if args.command == "decode":
