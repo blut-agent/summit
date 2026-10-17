@@ -97,9 +97,16 @@ class ScanEngine:
                 self.add(finding)
 
         if self.active:
+            # Detect backend technology for tech-aware prioritization
+            detected_tech = None
+            for response in spider_result.get("pages", []):
+                powered = response.header("x-powered-by") or response.header("server") or ""
+                detected_tech = powered
+                break
+
             # The prioritizer orders high-signal parameters first, so the
             # interesting findings show up early in the report stream.
-            targets = prioritize(build_targets(spider_result))
+            targets = prioritize(build_targets(spider_result), detected_tech)
             self.high_signal = sum(1 for point in targets if score_point(point) >= 2)
             tasks = [(check, point) for check in self.checks for point in targets]
             if tasks:

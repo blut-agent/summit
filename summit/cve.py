@@ -53,10 +53,36 @@ CVE_DATABASE: list[tuple[str, list[tuple[str, str, str]]]] = [
         r"tomcat/(\d+(?:\.\d+)*)",
         [
             (
-                ">=6.0.0,<6.0.53;>=7.0.0,<7.0.100;>=8.0.0,<8.5.51;>=9.0.0,<9.0.31;>=10.0.0,<10.0.3",
+                ">=6.0.0,<6.0.53;>=7.0.0,<7.0.100;>=8.0.0,<8.5.51;>=9.0.0,<9.0.31;>=10.0.0,<10.0.2",
                 "CVE-2020-1938",
                 "Ghostcat - AJP connector file read, possible RCE",
             ),
+        ],
+    ),
+    (
+        r"wordpress\s*(\d+\.\d+(?:\.\d+)?)",
+        [
+            (">=5.0.0,<5.8.3", "CVE-2022-21661", "WP_Query SQL injection via crafted query parameters"),
+            (">=6.0.0,<6.0.2", "CVE-2022-35914", "Unauthenticated blind SSRF via pingback"),
+        ],
+    ),
+    (
+        r"php/(\d+\.\d+\.\d+)",
+        [
+            (">=8.1.0,<=8.1.5", "CVE-2022-31626", "Buffer overflow in mysqlnd - possible RCE"),
+            (">=8.0.0,<=8.0.19", "CVE-2022-31626", "Buffer overflow in mysqlnd - possible RCE"),
+        ],
+    ),
+    (
+        r"nginx/(\d+\.\d+(?:\.\d+)?)",
+        [
+            (">=1.23.0,<=1.23.3", "CVE-2023-44487", "HTTP/2 Rapid Reset - DoS via stream multiplexing"),
+        ],
+    ),
+    (
+        r"jetty/(\d+\.\d+(?:\.\d+)?)",
+        [
+            (">=9.4.0,<=9.4.52", "CVE-2023-44487", "HTTP/2 Rapid Reset - DoS via stream multiplexing"),
         ],
     ),
 ]
