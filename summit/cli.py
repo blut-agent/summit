@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from pathlib import Path
 
 from . import __version__
@@ -23,12 +24,44 @@ from .tls import audit as tls_audit
 from .updates import fetch_latest_version, install_tools, is_outdated, self_update
 
 BANNER = r"""
-          _
- ___ _ _| |_ ___ _ _ ___  _ _ ___ ___
-|  _| ' \  _/ -_) '_/ -_) '_\ \ / / -_)   summit v{version}
-|___|_||_\__\___|_| \___|_| /_\_\ \___|   by Pennacle Security
-                                          authorized testing only
+                 /\
+                /  \
+               / /\ \
+              / /  \ \         summit v{version}
+             / / /\ \ \        by Pennacle Security
+            / /_/  \_\ \       authorized testing only
+           /___________\
+          /__/      \___\
 """
+
+_SILENT = False
+
+
+def _log(msg: str) -> None:
+    """Print a progress line unless --silent is active."""
+    if not _SILENT:
+        print(msg)
+
+
+def _fmt_duration(seconds: float) -> str:
+    """Format seconds as human-readable duration (e.g. '1m 23s', '2h 5m 3s')."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes, secs = divmod(int(seconds), 60)
+    if minutes < 60:
+        return f"{minutes}m {secs}s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h {minutes}m {secs}s"
+
+
+def _eta(started: float, done: int, total: int) -> str:
+    """Estimate remaining time based on progress so far."""
+    if done <= 0 or total <= 0 or done >= total:
+        return ""
+    elapsed = time.monotonic() - started
+    rate = done / elapsed
+    remaining = (total - done) / rate
+    return f"ETA: {_fmt_duration(remaining)}"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,6 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Summit - open-source web security testing platform (proxy, scanner, fuzzer, link hijack detection).",
     )
     parser.add_argument("--version", action="version", version=f"summit {__version__}")
+    parser.add_argument("--silent", action="store_true", help="suppress all progress/debug output, only show findings")
     parser.add_argument("--check-update", action="store_true", help="compare the installed version against the latest GitHub release")
     parser.add_argument("--auto-update", action="store_true", help="update summit in place (git checkout) or print exact install steps")
     parser.add_argument("--install-tools", action="store_true", help="install recon tools (nmap, httpx, subfinder) via the available package manager")
@@ -61,6 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--severity", default=None, help="only report these severities, comma separated: high,critical")
     scan.add_argument("--min-severity", dest="min_severity", default=None,
                       choices=list(SEVERITIES), help="report findings at or above this severity")
+    scan.add_argument("--silent", action="store_true", help="suppress all progress/debug output, only show findings")
 
     mine_p = sub.add_parser("mine", help="discover hidden parameters on one URL (Param Miner approach)")
     mine_p.add_argument("url")
@@ -172,64 +207,88 @@ def _apply_severity_filters(findings, args: argparse.Namespace):
 
 
 def _cmd_scan(args: argparse.Namespace) -> int:
-    print(BANNER.format(version=__version__))
+    global _SILENT
+    _SILENT = getattr(args, "silent", False) or _SILENT
+    if not _SILENT:
+        print(BANNER.format(version=__version__))
+
+    scan_started = time.monotonic()
     client = HttpClient(timeout=args.timeout, delay=args.delay, rate=args.rate, retries=args.retries)
+
     if args.openapi_path:
         spec = load_spec(args.openapi_path)
         result = spec_pages(client, spec)
-        print(f"[*] openapi spec loaded: {len(result['pages'])} target(s), {len(result['errors'])} error(s)")
+        _log(f"[*] openapi spec loaded: {len(result['pages'])} target(s), {len(result['errors'])} error(s)")
     else:
         spider = Spider(client, max_depth=args.depth, max_pages=args.max_pages, delay=args.delay)
-        print(f"[*] crawling {args.url} ...")
+        _log(f"[*] [RECON] crawling {args.url} (depth={args.depth}, max_pages={args.max_pages}) ...")
         result = spider.crawl(args.url)
-        print(
-            f"[*] visited {len(result['visited'])} page(s), "
+        _log(
+            f"[*] [RECON] visited {len(result['visited'])} page(s), "
             f"{len(result['forms'])} form(s), {len(result['external_links'])} outbound link(s), "
             f"{len(result['errors'])} request error(s)"
         )
-    for error in result["errors"][:5]:
-        print(f"[!] {error}")
+        recon_elapsed = time.monotonic() - scan_started
+        _log(f"[*] [RECON] completed in {_fmt_duration(recon_elapsed)}")
 
+    for error in result["errors"][:5]:
+        _log(f"[!] {error}")
+
+    vuln_started = time.monotonic()
     engine = ScanEngine(
         client,
         active=not args.no_active,
         workers=args.workers,
         linkcheck_enabled=not args.skip_linkcheck,
     )
+    _log(f"[*] [SCAN] running passive + active checks (workers={args.workers}) ...")
     findings = engine.scan(result)
+    vuln_elapsed = time.monotonic() - vuln_started
+    _log(f"[*] [SCAN] completed in {_fmt_duration(vuln_elapsed)} - {len(engine.findings)} raw finding(s)")
+
     findings = _apply_severity_filters(findings, args)
-    print(
-        f"[*] {client.request_count} request(s) in {engine.elapsed:.1f}s "
+    total_elapsed = time.monotonic() - scan_started
+    _log(
+        f"[*] [DONE] {client.request_count} request(s) in {_fmt_duration(total_elapsed)} "
         f"(workers={args.workers}, rate={args.rate or 'unlimited'}, retries={args.retries})"
     )
-    print(f"[*] smart order: {engine.high_signal} high-signal injection point(s) probed first")
+    _log(f"[*] [DONE] smart order: {engine.high_signal} high-signal injection point(s) probed first")
+    _log(f"[*] [DONE] total scan time: {_fmt_duration(total_elapsed)}")
+
     for error in engine.errors[:5]:
         print(f"[!] check error: {error}")
     print(write_console(findings, args.url))
+
     if args.json_path:
         write_json(findings, args.json_path)
-        print(f"[*] JSON report written to {args.json_path}")
+        _log(f"[*] JSON report written to {args.json_path}")
     if args.html_path:
         write_html(findings, args.html_path, args.url)
-        print(f"[*] HTML report written to {args.html_path}")
+        _log(f"[*] HTML report written to {args.html_path}")
     if getattr(args, "sarif_path", None):
         from .report.sarif import write_sarif
         write_sarif(findings, args.sarif_path)
-        print(f"[*] SARIF report written to {args.sarif_path} (GitHub code scanning compatible)")
+        _log(f"[*] SARIF report written to {args.sarif_path} (GitHub code scanning compatible)")
     if getattr(args, "junit_path", None):
         from .report.sarif import write_junit
         write_junit(findings, args.junit_path)
-        print(f"[*] JUnit XML report written to {args.junit_path}")
+        _log(f"[*] JUnit XML report written to {args.junit_path}")
     return 0
 
 
 def _cmd_fuzz(args: argparse.Namespace) -> int:
+    global _SILENT
+    _SILENT = args.silent
     wordlist = None
     if args.wordlist:
         wordlist = [line.strip() for line in Path(args.wordlist).read_text(encoding="utf-8").splitlines() if line.strip()]
     extensions = [ext.strip().lstrip(".") for ext in args.extensions.split(",") if ext.strip()]
     client = HttpClient(timeout=args.timeout, rate=args.rate)
+    started = time.monotonic()
     findings = fuzz(client, args.url, wordlist=wordlist, threads=args.threads, extensions=extensions)
+    elapsed = time.monotonic() - started
+    if not _SILENT:
+        print(f"[*] fuzz completed in {_fmt_duration(elapsed)} - {len(findings)} path(s) found")
     print(write_console(findings, args.url))
     return 0
 
@@ -259,14 +318,21 @@ def _cmd_repeater(args: argparse.Namespace) -> int:
 
 
 def _cmd_mine(args: argparse.Namespace) -> int:
-    print(BANNER.format(version=__version__))
+    global _SILENT
+    _SILENT = args.silent
+    if not _SILENT:
+        print(BANNER.format(version=__version__))
     client = HttpClient(timeout=args.timeout)
-    print(f"[*] mining hidden parameters on {args.url} ...")
+    started = time.monotonic()
+    _log(f"[*] mining hidden parameters on {args.url} (~120 candidates) ...")
     findings = mine(client, args.url, workers=args.workers)
+    elapsed = time.monotonic() - started
+    if not _SILENT:
+        print(f"[*] mining completed in {_fmt_duration(elapsed)} - {len(findings)} discovery(ies)")
     print(write_console(findings, args.url))
     if args.json_path:
         write_json(findings, args.json_path)
-        print(f"[*] JSON report written to {args.json_path}")
+        _log(f"[*] JSON report written to {args.json_path}")
     return 0
 
 
@@ -282,8 +348,11 @@ def _cmd_authorize(args: argparse.Namespace) -> int:
         print("[!] authorize needs at least two roles - first is the privileged baseline")
         return 1
     privileged, other = roles[0], roles[1]
-    print(f"[*] testing {len(args.urls)} URL(s): '{privileged.name}' vs '{other.name}'")
+    started = time.monotonic()
+    _log(f"[*] testing {len(args.urls)} URL(s): '{privileged.name}' vs '{other.name}'")
     results = run_authorize(client, args.urls, privileged, other)
+    elapsed = time.monotonic() - started
+    _log(f"[*] completed in {_fmt_duration(elapsed)}")
     for result in results:
         print(f"  [{result.verdict.upper()}] {result.url}")
         if result.verdict == "broken":
@@ -292,12 +361,13 @@ def _cmd_authorize(args: argparse.Namespace) -> int:
     print(write_console(findings, f"{len(args.urls)} URL(s), {privileged.name} vs {other.name}"))
     if args.json_path:
         write_json(findings, args.json_path)
-        print(f"[*] JSON report written to {args.json_path}")
+        _log(f"[*] JSON report written to {args.json_path}")
     return 0
 
 
 def _cmd_recon(args: argparse.Namespace) -> int:
     print(BANNER.format(version=__version__))
+    started = time.monotonic()
     missing = missing_tools()
     if missing:
         print(f"[!] tools not on PATH: {', '.join(missing)} - install them with: summit --install-tools")
@@ -307,6 +377,8 @@ def _cmd_recon(args: argparse.Namespace) -> int:
     except Exception as exc:
         print(f"[!] recon failed: {exc}")
         return 1
+    elapsed = time.monotonic() - started
+    _log(f"[*] recon completed in {_fmt_duration(elapsed)}")
     print(render_report(report))
     if args.json_path:
         Path(args.json_path).write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -316,11 +388,14 @@ def _cmd_recon(args: argparse.Namespace) -> int:
 
 def _cmd_tls(args: argparse.Namespace) -> int:
     print(BANNER.format(version=__version__))
+    started = time.monotonic()
     try:
         findings = tls_audit(args.host, port=args.port, timeout=args.timeout)
     except ConnectionError as exc:
         print(f"[!] {exc}")
         return 1
+    elapsed = time.monotonic() - started
+    _log(f"[*] TLS audit completed in {_fmt_duration(elapsed)}")
     print(write_console(findings, f"{args.host}:{args.port}"))
     if not findings:
         print("[*] no TLS findings - certificate valid, no legacy protocol versions accepted")
@@ -334,11 +409,14 @@ def _cmd_race(args: argparse.Namespace) -> int:
     print(BANNER.format(version=__version__))
     client = HttpClient(timeout=args.timeout)
     headers = {"Cookie": args.cookie} if args.cookie else {}
-    print(f"[*] testing {args.url} with {args.concurrency} concurrent {args.method} requests ...")
+    started = time.monotonic()
+    _log(f"[*] testing {args.url} with {args.concurrency} concurrent {args.method} requests ...")
     result = run_race_test(
         client, args.url, concurrency=args.concurrency, method=args.method,
         body=args.data.encode() if args.data else None, headers=headers,
     )
+    elapsed = time.monotonic() - started
+    _log(f"[*] race test completed in {_fmt_duration(elapsed)}")
     print(f"[*] baseline: HTTP {result.baseline.status}/{len(result.baseline.body)}B")
     print(f"[*] concurrent: {len(result.concurrent)} responses, {result.unique_responses} unique")
     findings = race_findings_from([result])
@@ -370,6 +448,8 @@ def _cmd_decode(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    global _SILENT
+    _SILENT = getattr(args, "silent", False)
     try:
         if args.check_update:
             return _cmd_check_update()
