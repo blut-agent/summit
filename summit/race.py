@@ -23,9 +23,9 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
-from ...http.client import HttpClient
-from ...http.models import HttpRequest, HttpResponse
-from ..scan.core import Finding
+from .http.client import HttpClient
+from .http.models import HttpRequest, HttpResponse
+from .scan.core import Finding
 
 
 @dataclass
