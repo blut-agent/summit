@@ -58,6 +58,8 @@ def build_requests(spec: dict, base_url: str | None = None) -> list[HttpRequest]
     targets: list[HttpRequest] = []
     seen: set[tuple[str, str]] = set()
     for path, methods in (spec.get("paths") or {}).items():
+        if not isinstance(methods, dict):
+            continue  # null or non-dict path entries (e.g. `"/x": null`)
         shared_params = methods.get("parameters") or []
         for method, operation in methods.items():
             if method.lower() not in _HTTP_METHODS or not isinstance(operation, dict):
