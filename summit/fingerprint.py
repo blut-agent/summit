@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 
-from ..http.models import HttpResponse
+from .http.models import HttpResponse
 
 # Each fingerprint: (category, name, regex against response, version_group)
 # Categories: server, framework, cms, library, analytics, cdn
