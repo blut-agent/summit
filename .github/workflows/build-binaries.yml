@@ -32,6 +32,7 @@ jobs:
       - name: Build binary
         shell: bash
         run: |
+          echo 'from summit.cli import main; import sys; sys.exit(main())' > launcher.py
           pyinstaller --onefile --name summit-${{ matrix.target }} \
             --hidden-import=summit \
             --hidden-import=summit.cli \
@@ -62,7 +63,7 @@ jobs:
             --hidden-import=summit.report.sarif \
             --hidden-import=summit.proxy.server \
             --hidden-import=summit.fuzz.dirbuster \
-            -m summit.cli
+            launcher.py
       - name: Verify binary exists
         shell: bash
         run: |
