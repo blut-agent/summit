@@ -156,3 +156,4 @@ All notable changes to summit are documented here. The format follows
 - First public release.
 - CLI: scan / fuzz / proxy / repeater.
 - Passive and active checks, JSON and HTML reports.
+

@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from ..fingerprint import fingerprint
 from ..http.client import HttpClient
 from .core import Finding
-from .crawl.spider import Spider
+from ..crawl.spider import Spider
 from .passive import run_passive
 
 
