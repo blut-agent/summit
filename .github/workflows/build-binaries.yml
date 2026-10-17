@@ -1,0 +1,43 @@
+name: build-binaries
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-amd64
+            artifact: summit-linux-amd64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+            artifact: summit-linux-arm64
+          - os: windows-latest
+            target: windows-amd64
+            artifact: summit-windows-amd64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: pip install . pyinstaller
+      - name: Build binary
+        run: |
+          pyinstaller --onefile --name summit-${{ matrix.target }} \
+            --hidden-import=summit.scan.modules \
+            --hidden-import=summit.report \
+            summit/cli.py
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: dist/summit-${{ matrix.target }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          asset_name: summit-${{ matrix.target }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
