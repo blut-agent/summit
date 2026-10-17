@@ -5,19 +5,19 @@
 <p align="center">
   <a href="https://github.com/pennacle-security/summit/actions/workflows/tests.yml"><img src="https://github.com/pennacle-security/summit/actions/workflows/tests.yml/badge.svg" alt="CI status"></a>
   <a href="https://github.com/pennacle-security/summit/releases"><img src="https://img.shields.io/github/v/tag/pennacle-security/summit?label=release&color=2ea44f" alt="release"></a>
+  <a href="https://pypi.org/project/summit-scanner/"><img src="https://img.shields.io/pypi/v/summit-scanner?color=2ea44f" alt="PyPI"></a>
   <a href="https://www.bestpractices.dev/projects/15532"><img src="https://www.bestpractices.dev/projects/15532/badge" alt="CII Best Practices"></a>
   <a href="https://api.scorecard.dev/projects/github.com/pennacle-security/summit/badge"><img src="https://api.scorecard.dev/projects/github.com/pennacle-security/summit/badge" alt="OpenSSF Scorecard"></a>
   <a href="https://pennacle-security.github.io/summit/"><img src="https://img.shields.io/badge/docs-live-2ea44f" alt="docs"></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-3776ab" alt="python 3.10+">
   <img src="https://img.shields.io/github/license/pennacle-security/summit?color=8b949e" alt="MIT license">
-  <img src="https://img.shields.io/badge/dependencies-requests%20only-8b949e" alt="one dependency">
 </p>
 
 <p align="center">One scriptable CLI for web security testing: scanner, proxy, fuzzer, authorization testing, WAF analysis, link-hijack detection and recon.<br>Free where the equivalents are paid - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
 
 ---
 
-We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit is that tool - v0.5, MIT, one dependency (`requests`), built in the open.
+We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit is that tool - v0.6, MIT, a single `pip install summit-scanner` away, built in the open.
 
 **Full documentation:** [pennacle-security.github.io/summit](https://pennacle-security.github.io/summit/)
 
@@ -57,6 +57,8 @@ Every finding carries a confidence label: `confirmed` (an observed fact) or `pot
 ## Quick start
 
 ```bash
+pip install summit-scanner        # from PyPI
+# or from a git checkout:
 git clone https://github.com/pennacle-security/summit.git
 cd summit
 pip install -e .
