@@ -140,6 +140,13 @@ class ScanEngine:
                         self.add(finding)
                 except Exception as exc:
                     self.errors.append(f"graphql check failed: {exc}")
+                from .modules.csrf import check_csrf_forms
+
+                try:
+                    for finding in check_csrf_forms(None, spider_result.get("forms", [])):
+                        self.add(finding)
+                except Exception as exc:
+                    self.errors.append(f"csrf check failed: {exc}")
                 from .modules.directory_listing import run_directory_listing
 
                 try:

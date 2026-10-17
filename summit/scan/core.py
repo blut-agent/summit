@@ -64,6 +64,7 @@ CWE_BY_CHECK_ID = {
     "directory-listing": "CWE-548",
     "cacheable-sensitive": "CWE-524",
     "headers-grade": "",
+    "csrf-missing": "CWE-352",
 }
 
 

@@ -6,6 +6,7 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 from ..http.client import HttpClient
 from ..http.models import HttpRequest, HttpResponse
+from .js_endpoints import extract_from_page
 
 _LINK_ATTRS = {"a": "href", "link": "href", "script": "src", "img": "src", "iframe": "src", "form": "action"}
 
@@ -116,6 +117,22 @@ class Spider:
                     queue.append((absolute, depth + 1))
                 else:
                     external_links.add(absolute.split("#", 1)[0])
+
+            # JavaScript endpoint extraction (AJAX-spider pass): fetch/axios/
+            # XHR targets hidden inside the page and any same-host .js files
+            # it references. These are attack surface a plain <a href> crawler
+            # never sees.
+            js_endpoints, js_files = extract_from_page(response.text, base, {urlsplit(base).hostname or ""})
+            for endpoint in js_endpoints:
+                if endpoint.startswith(("http://", "https://")):
+                    if self.in_scope(endpoint):
+                        queue.append((endpoint.split("#", 1)[0], depth + 1))
+                    else:
+                        external_links.add(endpoint.split("#", 1)[0])
+            for js_file in js_files:
+                if self.in_scope(js_file):
+                    queue.append((js_file.split("#", 1)[0], depth + 1))
+
             for form in extractor.forms:
                 action = urljoin(base, form["action"] or clean)
                 fields: dict[str, str] = {}
