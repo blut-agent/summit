@@ -12,15 +12,12 @@ jobs:
         include:
           - os: ubuntu-latest
             target: linux-amd64
-            artifact: summit-linux-amd64
             ext: ""
           - os: ubuntu-24.04-arm
             target: linux-arm64
-            artifact: summit-linux-arm64
             ext: ""
           - os: windows-latest
             target: windows-amd64
-            artifact: summit-windows-amd64
             ext: .exe
     runs-on: ${{ matrix.os }}
     steps:
@@ -66,9 +63,7 @@ jobs:
             launcher.py
       - name: Verify binary exists
         shell: bash
-        run: |
-          ls -la dist/
-          test -f "dist/summit-${{ matrix.target }}${{ matrix.ext }}"
+        run: ls -la dist/
       - name: Upload to release
         if: github.event_name == 'release'
         uses: actions/upload-release-asset@v1
@@ -78,3 +73,4 @@ jobs:
           upload_url: ${{ github.event.release.upload_url }}
           asset_path: dist/summit-${{ matrix.target }}${{ matrix.ext }}
           asset_name: summit-${{ matrix.target }}${{ matrix.ext }}
+          asset_content_type: application/octet-stream
