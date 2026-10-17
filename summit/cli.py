@@ -16,6 +16,7 @@ from .proxy.server import ProxyServer
 from .race import findings_from as race_findings_from, run_race_test
 from .recon import missing_tools, render_report, run_recon
 from .report.writer import write_console, write_html, write_json
+from .report.sarif import write_sarif, write_junit
 from .scan.core import SEVERITIES, filter_by_min_severity, filter_by_severities
 from .scan.engine import ScanEngine
 from .toolkit import decode_text, encode_text
@@ -56,6 +57,8 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--timeout", type=float, default=10.0, help="request timeout in seconds")
     scan.add_argument("--json", dest="json_path", help="write a JSON report to this path")
     scan.add_argument("--html", dest="html_path", help="write an HTML report to this path")
+    scan.add_argument("--sarif", dest="sarif_path", help="write a SARIF 2.1.0 report (GitHub code scanning compatible)")
+    scan.add_argument("--junit", dest="junit_path", help="write a JUnit XML report (CI/CD pipeline compatible)")
     scan.add_argument("--severity", default=None, help="only report these severities, comma separated: high,critical")
     scan.add_argument("--min-severity", dest="min_severity", default=None,
                       choices=list(SEVERITIES), help="report findings at or above this severity")
@@ -210,6 +213,14 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     if args.html_path:
         write_html(findings, args.html_path, args.url)
         print(f"[*] HTML report written to {args.html_path}")
+    if getattr(args, "sarif_path", None):
+        from .report.sarif import write_sarif
+        write_sarif(findings, args.sarif_path)
+        print(f"[*] SARIF report written to {args.sarif_path} (GitHub code scanning compatible)")
+    if getattr(args, "junit_path", None):
+        from .report.sarif import write_junit
+        write_junit(findings, args.junit_path)
+        print(f"[*] JUnit XML report written to {args.junit_path}")
     return 0
 
 
