@@ -173,7 +173,7 @@ Shared flags on scanning commands: `--workers`, `--rate` (requests/second ceilin
 
 **Hidden parameter mining.** Servers read parameters the HTML never mentions - debug switches, feature flags, internal overrides. ~70 candidate names are probed with unique markers; reflection findings are `confirmed`, status/size shifts are `potential`. Measured: the demo's undocumented `debug` switch found as `confirmed`, the other candidates silent - zero noise.
 
-**OpenAPI-driven scanning.** Every documented endpoint becomes a target, with path params filled from examples and defaults - no crawling, no guessing. Measured: the spec alone leads the engine to the seeded SQLi and XSS. JSON specs natively; YAML needs converting first (the dependency list stays at exactly one).
+**OpenAPI-driven scanning.** Every documented endpoint becomes a target, with path params filled from examples and defaults - no crawling, no guessing. Measured: the spec alone leads the engine to the seeded SQLi and XSS. JSON and YAML specs are read natively.
 
 **WAF detection and bypass.** Tight vendor signatures for Cloudflare, AWS WAF, Akamai, Imperva, ModSecurity, Sucuri, F5 and Wordfence. When a filter blocks standard payloads, tamper variants (single/double URL-encoding, comment splitting, case alternation) are tried - and a bypass is reported only when the original payload lands **decoded** in the response. Measured: raw payload -> HTTP 403; encoded once -> HTTP 200, decoded.
 
