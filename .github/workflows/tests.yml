@@ -20,7 +20,11 @@ jobs:
           python examples/vuln_app.py &
           APP_PID=$!
           sleep 2
-          summit scan http://127.0.0.1:8765 --depth 1 --max-pages 20 --workers 8 --rate 50 --retries 1 --json demo.json
+          # --depth 2: the seeded CSRF-vulnerable form lives on /login, one link
+          # below the start page. The spider fetches frontier pages but only
+          # extracts forms above max_depth, so --depth 1 made csrf-missing
+          # structurally impossible to fire.
+          summit scan http://127.0.0.1:8765 --depth 2 --max-pages 20 --workers 8 --rate 50 --retries 1 --json demo.json
           kill $APP_PID
           python - <<'EOF'
           import json
