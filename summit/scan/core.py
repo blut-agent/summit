@@ -160,14 +160,17 @@ class Finding:
     remediation: str = ""
     # "confirmed" = observed fact (raw reflection, file content, fresh DB
     # error, 3xx Location). "potential" = heuristic signal.
-    confidence: str = "potential"
+    confidence: str = "needs-manual"
     # CWE identifier, resolved from check_id when the module does not set it.
     cwe: str = ""
     # CVE identifiers detected for this finding (e.g. from version banners).
     cves: list[str] = field(default_factory=list)
     # Security impact: what an attacker concretely achieves. Resolved from
     # check_id when the module does not set it.
-    impact: str = ""
+    impact: str = `"
+    poc: str = `"
+    verification_steps: str = `"
+    affected_urls: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {
