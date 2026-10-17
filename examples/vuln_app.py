@@ -32,6 +32,7 @@ Seeded vulnerabilities:
     - sensitive file      /.env            (200 with APP_KEY/DB_PASSWORD content)
     - time-based SQLi     /user?id=        (SLEEP marker pauses the handler 0.25s)
     - GraphQL leak        /graphql         (introspection enabled in production)
+    - client CVE leak     (page references jQuery 3.4.1 + WordPress 5.7.1 banners)
     - missing security headers + version disclosure on every response
 
 The "partner" link (https://example.com) is a live negative control: a
@@ -53,6 +54,11 @@ PAGE = """<!doctype html>
 <body>
 <h1>Summit demo shop</h1>
 <p>Deliberately vulnerable on purpose. Local only.</p>
+<script src="/app.js"></script>
+<script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+<meta name="generator" content="WordPress 5.7.1">
+<script src="/static/jquery-3.4.1.min.js"></script>
+<meta name="generator" content="WordPress 5.7.1">
 <ul>
   <li><a href="/search?query=laptop">search</a></li>
   <li><a href="/user?id=1">user</a></li>
@@ -331,6 +337,26 @@ class DemoHandler(BaseHTTPRequestHandler):
                 "</ul><hr></body></html>"
             )
             self._html(body)
+
+        elif path == "/app.js":
+            # Hidden endpoint: only referenced from JavaScript - a plain
+            # <a href> crawler never finds it, the AJAX-spider pass does.
+            body = b"fetch('/api/secret?token=abc123');\n"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/javascript")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        elif path == "/api/secret":
+            # Vulnerable: internal API that leaks a token in its response,
+            # with no cache restrictions. Only reachable via the JS pass.
+            body = json.dumps({"token": "summit-demo-secret-token-9f3", "role": "internal"})
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body.encode())))
+            self.end_headers()
+            self.wfile.write(body.encode())
 
         elif path == "/redirect":
             # Vulnerable: unvalidated redirect target.

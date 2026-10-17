@@ -61,6 +61,17 @@ CVE_DATABASE: list[tuple[str, list[tuple[str, str, str]]]] = [
     ),
 ]
 
+# Frontend/library signatures matched in the response BODY. These ship
+# version numbers inside script URLs or generator meta tags, which makes
+# detection deterministic: jquery-3.4.1.min.js cannot be anything else.
+# (regex, version, CVE id, description)
+BODY_CVE_DATABASE: list[tuple[str, str, str, str]] = [
+    (r"jquery[-.]3\.4\.\d+", "3.4.x", "CVE-2020-11023", "XSS via cross-domain ajax responses passed to jQuery DOM methods"),
+    (r"jquery[-.]1\.12\.\d+", "1.12.x", "CVE-2020-11023", "XSS via cross-domain ajax responses passed to jQuery DOM methods"),
+    (r"lodash[-.]4\.17\.(?:1[0-5]|1[0-4]\d|15)", "4.17.15", "CVE-2020-8203", "prototype pollution in lodash zipObjectDeep - possible RCE"),
+    (r"WordPress\s+5\.7\.[01]", "5.7.0/5.7.1", "CVE-2021-29447", "XXE via media upload - file disclosure and SSRF"),
+]
+
 
 def _version(value: str):
     try:
@@ -71,7 +82,7 @@ def _version(value: str):
 
 def _range_matches(version: str, range_spec: str) -> bool:
     parsed = _version(version)
-    for part in range_spec.split(";"):
+    for part in re.split(r"[;|]", range_spec):
         part = part.strip()
         if not part:
             continue
@@ -100,6 +111,18 @@ def _range_matches(version: str, range_spec: str) -> bool:
             if version in [token.strip() for token in part.split(",")]:
                 return True
     return False
+
+
+def detect_body_cves(body: str) -> list[dict]:
+    """Match library/framework versions embedded in the response body.
+
+    Returns {cve, version, description} dicts for every signature hit.
+    """
+    findings: list[dict] = []
+    for pattern, version, cve_id, description in BODY_CVE_DATABASE:
+        if re.search(pattern, body, re.IGNORECASE):
+            findings.append({"cve": cve_id, "version": version, "description": description})
+    return findings
 
 
 def detect_cves(*banner_values: str) -> list[dict]:

@@ -254,6 +254,38 @@ def check_waf(response: HttpResponse) -> list[Finding]:
     ]
 
 
+def check_body_cves(response: HttpResponse) -> list[Finding]:
+    """Frontend/library CVEs detected from script URLs and generator tags.
+
+    All CVEs found on one page are combined into a single finding - the
+    engine dedupes on (check_id, url), so multiple findings for the same
+    page would be silently swallowed.
+    """
+    from .modules.body_cves import detect_body_cves
+
+    body = response.text[:100_000].lower()
+    hits = detect_body_cves(body)
+    if not hits:
+        return []
+    cve_ids = [entry["cve"] for entry in hits]
+    versions = ", ".join(entry["version"] for entry in hits)
+    descriptions = "; ".join(f"{entry['cve']}: {entry['description']}" for entry in hits)
+    return [
+        Finding(
+            check_id="cve-detected",
+            title=f"Known CVE(s) in frontend libraries: {', '.join(cve_ids)}",
+            severity="medium",
+            url=response.request.url,
+            confidence="potential",
+            cves=cve_ids,
+            detail=f"The page loads libraries with known CVEs ({versions}): {descriptions}. "
+            "Confirm the exact deployed version before reporting - some sites rename bundles.",
+            evidence=f"body signatures: {', '.join(cve_ids)} ({versions})",
+            remediation="Upgrade the affected libraries to their fixed releases.",
+        )
+    ]
+
+
 def run_passive(response: HttpResponse) -> list[Finding]:
     findings: list[Finding] = []
     for checker in (
@@ -268,6 +300,7 @@ def run_passive(response: HttpResponse) -> list[Finding]:
         check_takeover,
         check_cacheable_sensitive,
         check_headers_grade,
+        check_body_cves,
     ):
         findings.extend(checker(response))
     return findings
