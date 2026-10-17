@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 220 220" role="img" aria-label="summit logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#101b2e"/>
+    </linearGradient>
+    <linearGradient id="mountain" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a4a6e"/>
+      <stop offset="1" stop-color="#0b1220" stop-opacity="0.3"/>
+    </linearGradient>
+    <linearGradient id="peak-light" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7dd3fc"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <rect width="220" height="220" rx="44" fill="url(#bg)"/>
+  <rect x="1.5" y="1.5" width="217" height="217" rx="42.5" fill="none" stroke="#1e3a5f" stroke-width="2.5"/>
+  <!-- mountain silhouette -->
+  <path d="M 30 185 L 90 85 L 130 145 L 155 105 L 195 185 Z" fill="url(#mountain)" opacity="0.85"/>
+  <!-- snow cap on main peak -->
+  <path d="M 90 85 L 106 113 L 90 125 L 74 113 Z" fill="#7dd3fc" opacity="0.9"/>
+  <!-- small peak -->
+  <path d="M 155 105 L 168 130 L 155 138 L 142 130 Z" fill="#38bdf8" opacity="0.7"/>
+  <!-- scan line effect -->
+  <line x1="20" y1="160" x2="200" y2="160" stroke="#0ea5e9" stroke-width="1" opacity="0.3"/>
+  <line x1="20" y1="170" x2="200" y2="170" stroke="#0ea5e9" stroke-width="0.5" opacity="0.15"/>
+  <!-- text -->
+  <text x="110" y="35" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#7dd3fc" letter-spacing="3">SUMMIT</text>
+  <text x="110" y="52" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="8" fill="#4a7a9b" letter-spacing="1.5">SECURITY SCANNER</text>
+</svg>

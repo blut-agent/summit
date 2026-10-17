@@ -1,0 +1,42 @@
+/* Summit docs custom styling */
+:root {
+  --summit-accent: #7dd3fc;
+  --summit-dark: #0b1220;
+  --summit-surface: #101b2e;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-bg-color: var(--summit-dark);
+  --md-default-bg-color: var(--summit-dark);
+  --md-typeset-a-color: var(--summit-accent);
+}
+
+/* Logo sizing in header */
+.md-header__button.md-logo img {
+  height: 28px;
+  width: auto;
+}
+
+/* Code blocks: subtle border + rounded */
+.md-typeset pre > code {
+  border-radius: 6px;
+  border: 1px solid rgba(125, 211, 252, 0.1);
+}
+
+/* Admonition styling */
+.md-typeset .admonition {
+  border-radius: 6px;
+  border-width: 0 0 0 4px;
+}
+
+/* Table row hover */
+.md-typeset table:not([class]) tbody tr:hover {
+  background-color: rgba(125, 211, 252, 0.05);
+}
+
+/* Severity tag colors in tables */
+.sev-critical { color: #f85149; font-weight: 700; }
+.sev-high { color: #ff7b72; font-weight: 600; }
+.sev-medium { color: #d2a8ff; }
+.sev-low { color: #7ee787; }
+.sev-info { color: #8b949e; }

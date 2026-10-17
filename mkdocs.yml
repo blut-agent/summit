@@ -1,7 +1,7 @@
 site_name: summit
 site_description: >-
   Open-source web security testing platform: proxy, scanner, fuzzer, WAF
-  analysis and recon orchestration in one scriptable CLI.
+  analysis, takeover fingerprints and recon orchestration in one scriptable CLI.
 site_url: https://pennacle-security.github.io/summit/
 repo_url: https://github.com/pennacle-security/summit
 repo_name: pennacle-security/summit
@@ -9,28 +9,79 @@ copyright: Pennacle Security · MIT · authorized testing only
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   palette:
-    scheme: slate
-    primary: blue grey
-    accent: light blue
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      accent: light blue
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      accent: light blue
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
   features:
     - content.code.copy
+    - content.code.annotate
     - navigation.sections
     - navigation.top
+    - navigation.tracking
+    - navigation.expand
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  font:
+    text: Inter
+    code: JetBrains Mono
   icon:
-    logo: material/shield-search
+    repo: fontawesome/brands/github
 
-nav:
-  - Home: index.md
-  - Installation: installation.md
-  - Usage: usage.md
-  - Checks: checks.md
-  - Architecture: architecture.md
-  - Security policy: security.md
-  - Contributing: contributing.md
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/pennacle-security
+    - icon: material/shield-search
+      link: https://pennacle-security.github.io/summit/
 
 markdown_extensions:
   - admonition
   - pymdownx.highlight
   - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
   - tables
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: installation.md
+      - Quick Start: quickstart.md
+  - Reference:
+      - Commands: usage.md
+      - Check Catalog: checks.md
+      - Report Formats: reports.md
+  - Internals:
+      - Architecture: architecture.md
+      - Phase Engine: phases.md
+      - Technology Fingerprinting: fingerprinting.md
+  - Project:
+      - Security Policy: security.md
+      - Contributing: contributing.md
+      - Binaries: binaries.md
+      - Changelog: changelog.md
