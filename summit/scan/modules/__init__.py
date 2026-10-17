@@ -1,7 +1,10 @@
 from .cors_reflect import CorsReflectionCheck
 from .crlf import CrlfInjectionCheck
 from .enumeration import EnumerationCheck
+from .format_string import FormatStringCheck
 from .host_header import HostHeaderInjectionCheck
+from .ldap import LdapInjectionCheck
+from .nosql import NosqlInjectionCheck
 from .open_redirect import OpenRedirectCheck
 from .os_command import OsCommandInjectionCheck
 from .path_traversal import PathTraversalCheck
@@ -20,6 +23,9 @@ ALL_CHECKS = [
     OsCommandInjectionCheck(),
     SstiCheck(),
     CrlfInjectionCheck(),
+    NosqlInjectionCheck(),
+    LdapInjectionCheck(),
+    FormatStringCheck(),
     HostHeaderInjectionCheck(),
     CorsReflectionCheck(),
     EnumerationCheck(),

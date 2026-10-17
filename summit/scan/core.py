@@ -65,6 +65,9 @@ CWE_BY_CHECK_ID = {
     "cacheable-sensitive": "CWE-524",
     "headers-grade": "",
     "csrf-missing": "CWE-352",
+    "nosql-injection": "CWE-943",
+    "ldap-injection": "CWE-90",
+    "format-string": "CWE-134",
 }
 
 # Security impact per check: what an attacker concretely achieves, not
