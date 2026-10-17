@@ -69,6 +69,9 @@ CWE_BY_CHECK_ID = {
     "ldap-injection": "CWE-90",
     "format-string": "CWE-134",
     "race-condition": "CWE-362",
+    "jwt-security": "CWE-347",
+    "jwt-alg-none-attack": "CWE-347",
+    "session-fixation": "CWE-384",
 }
 
 # Security impact per check: what an attacker concretely achieves, not

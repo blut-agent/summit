@@ -3,12 +3,14 @@ from .crlf import CrlfInjectionCheck
 from .enumeration import EnumerationCheck
 from .format_string import FormatStringCheck
 from .host_header import HostHeaderInjectionCheck
-from .hpp import HppCheck
+from .hpp import HppCheck as HppCheck  # noqa: F811 - used in ALL_CHECKS
+from .jwt_security import JwtSecurityCheck
 from .ldap import LdapInjectionCheck
 from .nosql import NosqlInjectionCheck
 from .open_redirect import OpenRedirectCheck
 from .os_command import OsCommandInjectionCheck
 from .path_traversal import PathTraversalCheck
+from .session_fixation import SessionFixationCheck
 from .sqli import SqliBooleanCheck, SqliErrorCheck
 from .sqli_time import SqliTimeCheck
 from .ssti import SstiCheck
@@ -27,11 +29,11 @@ ALL_CHECKS = [
     NosqlInjectionCheck(),
     LdapInjectionCheck(),
     FormatStringCheck(),
-    HppCheck(),
-    LdapInjectionCheck(),
     HostHeaderInjectionCheck(),
     CorsReflectionCheck(),
     EnumerationCheck(),
+    SessionFixationCheck(),
+    JwtSecurityCheck(),
     OpenRedirectCheck(),
     PathTraversalCheck(),
 ]
