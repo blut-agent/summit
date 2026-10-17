@@ -68,6 +68,7 @@ CWE_BY_CHECK_ID = {
     "nosql-injection": "CWE-943",
     "ldap-injection": "CWE-90",
     "format-string": "CWE-134",
+    "race-condition": "CWE-362",
 }
 
 # Security impact per check: what an attacker concretely achieves, not

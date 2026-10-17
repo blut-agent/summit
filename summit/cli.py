@@ -13,6 +13,7 @@ from .http.models import HttpRequest
 from .openapi import load_spec, spec_pages
 from .paramminer import mine
 from .proxy.server import ProxyServer
+from .race import findings_from as race_findings_from, run_race_test
 from .recon import missing_tools, render_report, run_recon
 from .report.writer import write_console, write_html, write_json
 from .scan.core import SEVERITIES, filter_by_min_severity, filter_by_severities
@@ -107,6 +108,15 @@ def build_parser() -> argparse.ArgumentParser:
     tls_p.add_argument("--port", type=int, default=443)
     tls_p.add_argument("--timeout", type=float, default=10.0)
     tls_p.add_argument("--json", dest="json_path", help="write findings as JSON")
+
+    race_p = sub.add_parser("race", help="detect race conditions via concurrent identical requests")
+    race_p.add_argument("url", help="target URL that performs a state change")
+    race_p.add_argument("-n", "--concurrency", type=int, default=10, help="number of concurrent requests (default 10)")
+    race_p.add_argument("--method", default="GET", help="HTTP method (default GET)")
+    race_p.add_argument("--data", default=None, help="request body (for POST)")
+    race_p.add_argument("--cookie", default=None, help="Cookie header value")
+    race_p.add_argument("--timeout", type=float, default=10.0)
+    race_p.add_argument("--json", dest="json_path", help="write findings as JSON")
 
     return parser
 
@@ -310,6 +320,25 @@ def _cmd_tls(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_race(args: argparse.Namespace) -> int:
+    print(BANNER.format(version=__version__))
+    client = HttpClient(timeout=args.timeout)
+    headers = {"Cookie": args.cookie} if args.cookie else {}
+    print(f"[*] testing {args.url} with {args.concurrency} concurrent {args.method} requests ...")
+    result = run_race_test(
+        client, args.url, concurrency=args.concurrency, method=args.method,
+        body=args.data.encode() if args.data else None, headers=headers,
+    )
+    print(f"[*] baseline: HTTP {result.baseline.status}/{len(result.baseline.body)}B")
+    print(f"[*] concurrent: {len(result.concurrent)} responses, {result.unique_responses} unique")
+    findings = race_findings_from([result])
+    print(write_console(findings, args.url))
+    if args.json_path:
+        write_json(findings, args.json_path)
+        print(f"[*] JSON report written to {args.json_path}")
+    return 0
+
+
 def _cmd_encode(args: argparse.Namespace) -> int:
     try:
         print(encode_text(args.value, args.encoding))
@@ -354,6 +383,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_recon(args)
         if args.command == "tls":
             return _cmd_tls(args)
+        if args.command == "race":
+            return _cmd_race(args)
         if args.command == "encode":
             return _cmd_encode(args)
         if args.command == "decode":
