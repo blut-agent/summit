@@ -4,7 +4,7 @@ import html
 import json
 from datetime import datetime, timezone
 
-from ..scan.core import CWE_BY_CHECK_ID
+from ..scan.core import CWE_BY_CHECK_ID, IMPACT_BY_CHECK_ID
 
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 SEVERITY_COLORS = {
@@ -59,6 +59,9 @@ def write_console(findings, target: str) -> str:
             lines.append(f"    Detail: {finding.detail}")
         if finding.evidence:
             lines.append(f"    Evidence: {finding.evidence}")
+        impact = finding.impact or IMPACT_BY_CHECK_ID.get(finding.check_id, "")
+        if impact:
+            lines.append(f"    Impact: {impact}")
         if finding.remediation:
             lines.append(f"    Fix: {finding.remediation}")
         lines.append("")

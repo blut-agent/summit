@@ -67,9 +67,57 @@ CWE_BY_CHECK_ID = {
     "csrf-missing": "CWE-352",
 }
 
+# Security impact per check: what an attacker concretely achieves, not
+# a textbook definition. Shown in every report next to the finding.
+IMPACT_BY_CHECK_ID = {
+    "passive-security-headers": "Browsers miss out on built-in protections - clickjacking, MIME sniffing and downgrade attacks become possible.",
+    "passive-cookie-flags": "Session cookies can be stolen via plain HTTP or read by XSS payloads.",
+    "passive-error-disclosure": "Attackers learn the exact database engine, table structure "
+    "and framework version - turning blind guesses into targeted exploits.",
+    "passive-info-disclosure": "Attackers skip fingerprinting and go straight to version-specific exploits.",
+    "passive-cors": "Third-party websites may read authenticated responses from your users' browsers.",
+    "passive-email-leak": "Employee emails feed phishing campaigns and credential-stuffing lists.",
+    "waf-detected": "The attacker knows which bypass techniques to try.",
+    "captcha-challenge": "The endpoint is hardened against automation - manual testing required.",
+    "takeover-signature": "The next person to register that resource controls what your visitors see.",
+    "sqli-error": "Full database access: read, modify or destroy every record the application account can reach.",
+    "sqli-boolean": "Blind data extraction - one character per request, but the entire database is readable.",
+    "sqli-time": "Blind data extraction without visible error output - slower but equally complete.",
+    "xss-reflection": "Attacker-run JavaScript in your users' browsers: session theft, credential phishing, full page takeover.",
+    "xss-reflection-hardened": "The output encoding is holding - keep it through framework upgrades.",
+    "waf-bypass": "The WAF protection layer can be walked past - every payload behind it reaches the application.",
+    "os-command-injection": "Operating-system command execution on the server: full system compromise.",
+    "ssti": "Template engine code execution: file read/write, remote code execution depending on the engine.",
+    "crlf-injection": "Response splitting: cache poisoning, session fixation, and XSS via injected headers.",
+    "host-header-injection": "Password-reset emails with attacker-controlled links - account takeover via email interception.",
+    "cors-reflection": "Any website can read authenticated responses from your users' browsers.",
+    "open-redirect": "Phishing links that carry your domain - users trust the URL bar.",
+    "path-traversal": "Arbitrary file read on the server: source code, configuration files, credentials.",
+    "email-enumeration": "Attackers confirm which email addresses have accounts - targeted phishing and credential stuffing.",
+    "directory-listing": "Every file in the directory is visible and downloadable to anyone.",
+    "cacheable-sensitive": "Credentials retained in browser and proxy caches - readable by the next user of the machine.",
+    "headers-grade": "Summary of browser-side protection coverage.",
+    "csrf-missing": "Other websites can submit this form as your logged-in users.",
+    "authorize-bypass": "Low-privilege users access admin data and functions - full horizontal and vertical privilege escalation.",
+    "authorize-partial": "Response differences between roles may leak privileged data.",
+    "paramminer-reflected": "An undocumented parameter that reflects input - a new injection surface nobody was testing.",
+    "paramminer-behavior": "An undocumented parameter that changes server behavior - attack surface nobody knew about.",
+    "linkcheck-dead-domain": "Whoever registers the dead domain controls the page your users click through to.",
+    "linkcheck-parked": "A parked domain your users click through to - one expiry away from hijack.",
+    "linkcheck-broken": "Dead links damage user trust and SEO; they also signal unmaintained surface.",
+    "linkcheck-unreachable": "The linked service may be permanently gone.",
+    "linkcheck-private-target": "Internal services are referenced from public pages - internal network mapping for free.",
+    "sensitive-file": "Credentials and configuration readable by anyone with the URL.",
+    "cve-detected": "A known, published vulnerability applies to this version - public exploits may exist.",
+}
+
 
 def cwe_for(check_id: str) -> str:
     return CWE_BY_CHECK_ID.get(check_id, "")
+
+
+def impact_for(check_id: str) -> str:
+    return IMPACT_BY_CHECK_ID.get(check_id, "")
 
 
 @dataclass
@@ -89,6 +137,9 @@ class Finding:
     cwe: str = ""
     # CVE identifiers detected for this finding (e.g. from version banners).
     cves: list[str] = field(default_factory=list)
+    # Security impact: what an attacker concretely achieves. Resolved from
+    # check_id when the module does not set it.
+    impact: str = ""
 
     def as_dict(self) -> dict:
         return {
@@ -103,6 +154,7 @@ class Finding:
             "confidence": self.confidence,
             "cwe": self.cwe or cwe_for(self.check_id),
             "cves": list(self.cves),
+            "impact": self.impact or impact_for(self.check_id),
         }
 
 
