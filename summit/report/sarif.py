@@ -8,7 +8,6 @@ formats that make summit findings visible wherever your team already looks.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 
 from ..scan.core import Finding
 

@@ -16,7 +16,6 @@ from .proxy.server import ProxyServer
 from .race import findings_from as race_findings_from, run_race_test
 from .recon import missing_tools, render_report, run_recon
 from .report.writer import write_console, write_html, write_json
-from .report.sarif import write_sarif, write_junit
 from .scan.core import SEVERITIES, filter_by_min_severity, filter_by_severities
 from .scan.engine import ScanEngine
 from .toolkit import decode_text, encode_text

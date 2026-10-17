@@ -10,14 +10,14 @@
   <a href="https://pennacle-security.github.io/summit/"><img src="https://img.shields.io/badge/docs-live-2ea44f" alt="docs"></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-3776ab" alt="python 3.10+">
   <img src="https://img.shields.io/github/license/pennacle-security/summit?color=8b949e" alt="MIT license">
-  <img src="https://img.shields.io/badge/dependencies-requests%20only-8b949e" alt="one dependency">
+  <img src="https://img.shields.io/badge/dependencies-3%20FLOSS%20packages-8b949e" alt="three dependencies">
 </p>
 
 <p align="center">One scriptable CLI for web security testing: scanner, proxy, fuzzer, authorization testing, WAF analysis, link-hijack detection, race conditions and recon.<br>40+ checks across 11 families. Free where the equivalents are paid - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
 
 ---
 
-We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit is that tool - v0.5, MIT, one dependency (`requests`), built in the open.
+We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit now has 40+ checks across 11 families. Summit is that tool - v0.8.0, MIT, built in the open. Three dependencies (`requests`, `pyyaml`, `packaging`), all FLOSS, all standard.
 
 **Full documentation:** [pennacle-security.github.io/summit](https://pennacle-security.github.io/summit/)
 
@@ -66,7 +66,11 @@ cd summit
 pip install -e .
 ```
 
-Python 3.10+. Then watch it work against a deliberately vulnerable local target:
+Python 3.10+. Dependencies: `requests`, `pyyaml`, `packaging` - all FLOSS, all standard.
+
+Pre-built binaries available on every [release](https://github.com/pennacle-security/summit/releases) for Linux amd64, Linux ARM64, and Windows amd64 - no Python installation required.
+
+Then watch it work against a deliberately vulnerable local target:
 
 ```bash
 python examples/vuln_app.py        # terminal 1 - the target (127.0.0.1 only)
@@ -241,6 +245,11 @@ False positives waste your triage time. False negatives get clients breached. Su
 | Open redirect | active | medium | 3xx Location to probe host -> `confirmed` |
 | Path traversal | active | high | OS file indicators -> `confirmed` |
 | Broken access control (BOLA/IDOR) | authorize | critical | identical response for low-privilege role -> `confirmed` |
+| Email/user enumeration | active | medium | differential response for unknown identities -> `potential` |
+| Directory listing | passive-origin | medium | "Index of /" content signature -> `confirmed` |
+| Cacheable sensitive response | passive | medium | sensitive marker + no Cache-Control -> `potential` |
+| Security headers grade | passive | info | deterministic A..F roll-up |
+| Form missing CSRF token | passive-origin | medium | POST/password form without CSRF field -> `potential` |
 | Hidden parameter (reflected) | mine | medium | unique marker reflected -> `confirmed` |
 | Hidden parameter (behavior) | mine | low | status/size shift -> `potential` |
 | Link to dead domain (hijack) | linkcheck | high | DNS failure, verified twice -> `confirmed` |
@@ -268,8 +277,12 @@ False positives waste your triage time. False negatives get clients breached. Su
 | Rate limiting | built in, thread-safe | add-on | paid |
 | JWT/encoder toolkit | built in | add-on | built in |
 | Takeover fingerprints, host header, CORS | built in | add-ons | add-ons |
-| Codebase you can audit in an afternoon | ~3.6k lines | large | closed source |
+| Codebase you can audit in an afternoon | ~4.2k lines | large | closed source |
 | TLS-intercepting proxy | on the roadmap | yes | yes |
+| Race condition detection | `summit race` | add-on | paid (Turbo Intruder) |
+| TLS certificate audit | `summit tls` | add-on | built in |
+| SARIF output | built in | no | no |
+| Pre-built binaries per release | yes | no | no |
 
 We are not trying to replace either of them. Summit is the small tool you drop into a pipeline or onto a VPS box, and the codebase you can actually read line by line.
 
@@ -278,7 +291,6 @@ We are not trying to replace either of them. Summit is the small tool you drop i
 - [ ] TLS interception in the proxy (generated CA)
 - [ ] POST form and JSON body injection points
 - [ ] Authenticated scanning (cookies, headers)
-- [ ] CNAME-level subdomain takeover (DNS resolution + service verification)
 - [ ] Plugin API for custom checks
 - [ ] Request interception UI
 
