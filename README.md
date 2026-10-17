@@ -5,6 +5,7 @@
 <p align="center">
   <a href="https://github.com/pennacle-security/summit/actions/workflows/tests.yml"><img src="https://github.com/pennacle-security/summit/actions/workflows/tests.yml/badge.svg" alt="CI status"></a>
   <a href="https://github.com/pennacle-security/summit/releases"><img src="https://img.shields.io/github/v/tag/pennacle-security/summit?label=release&color=2ea44f" alt="release"></a>
+  <a href="https://pypi.org/project/summit-scanner/"><img src="https://img.shields.io/pypi/v/summit-scanner?label=pypi&color=306998" alt="PyPI"></a>
   <a href="https://www.bestpractices.dev/projects/15532"><img src="https://www.bestpractices.dev/projects/15532/badge" alt="CII Best Practices"></a>
   <a href="https://api.scorecard.dev/projects/github.com/pennacle-security/summit/badge"><img src="https://api.scorecard.dev/projects/github.com/pennacle-security/summit/badge" alt="OpenSSF Scorecard"></a>
   <a href="https://pennacle-security.github.io/summit/"><img src="https://img.shields.io/badge/docs-live-2ea44f" alt="docs"></a>
@@ -68,7 +69,26 @@ pip install -e .
 
 Python 3.10+. Dependencies: `requests`, `pyyaml`, `packaging` - all FLOSS, all standard.
 
-Pre-built binaries available on every [release](https://github.com/pennacle-security/summit/releases) for Linux amd64, Linux ARM64, and Windows amd64 - no Python installation required.
+**Install from PyPI:**
+
+```bash
+pip install summit-scanner
+```
+
+**Or from source:**
+
+```bash
+git clone https://github.com/pennacle-security/summit.git
+cd summit
+pip install -e .
+```
+
+**Pre-built binaries** available on every [release](https://github.com/pennacle-security/summit/releases):
+- `summit-linux-amd64` - Linux x86_64 (Ubuntu 20.04+, Debian 11+, RHEL 8+)
+- `summit-linux-arm64` - Linux ARM64 (AWS Graviton, Raspberry Pi 4+, Apple Silicon)
+- `summit-windows-amd64.exe` - Windows 10+ / Windows Server 2019+
+
+No Python installation required for binaries.
 
 Then watch it work against a deliberately vulnerable local target:
 
@@ -288,11 +308,15 @@ We are not trying to replace either of them. Summit is the small tool you drop i
 
 ## Roadmap
 
-- [ ] TLS interception in the proxy (generated CA)
-- [ ] POST form and JSON body injection points
-- [ ] Authenticated scanning (cookies, headers)
-- [ ] Plugin API for custom checks
-- [ ] Request interception UI
+- [x] ~~TLS interception in the proxy (generated CA)~~
+- [x] ~~POST form and JSON body injection points~~
+- [x] ~~Authenticated scanning (cookies, headers)~~
+- [ ] CNAME-level subdomain takeover (DNS resolution + service verification)
+- [x] ~~Plugin API for custom checks~~
+- [x] ~~Request interception UI~~
+- [ ] Collaboration server (out-of-band detection via DNS/HTTP callbacks)
+- [ ] Headless browser integration (JS rendering + DOM-based XSS)
+- [ ] Scan scheduling and diffing (compare scans over time)
 
 ## Community and contributors
 
