@@ -3,6 +3,7 @@ from .crlf import CrlfInjectionCheck
 from .enumeration import EnumerationCheck
 from .format_string import FormatStringCheck
 from .host_header import HostHeaderInjectionCheck
+from .hpp import HppCheck
 from .ldap import LdapInjectionCheck
 from .nosql import NosqlInjectionCheck
 from .open_redirect import OpenRedirectCheck
@@ -26,6 +27,8 @@ ALL_CHECKS = [
     NosqlInjectionCheck(),
     LdapInjectionCheck(),
     FormatStringCheck(),
+    HppCheck(),
+    LdapInjectionCheck(),
     HostHeaderInjectionCheck(),
     CorsReflectionCheck(),
     EnumerationCheck(),
