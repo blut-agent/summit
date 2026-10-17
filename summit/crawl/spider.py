@@ -99,9 +99,9 @@ class Spider:
                 errors.append(f"{clean}: {exc}")
                 continue
             pages.append(response)
-            if depth >= self.max_depth:
-                continue
-
+            # Always extract from fetched pages - we already paid the HTTP
+            # request cost, so skipping extraction here would waste it and
+            # cause false negatives (forms/links on depth-limit pages).
             extractor = _Extractor()
             try:
                 extractor.feed(response.text)
@@ -114,7 +114,10 @@ class Spider:
                 if not absolute.startswith(("http://", "https://")):
                     continue
                 if self.in_scope(absolute):
-                    queue.append((absolute, depth + 1))
+                    if depth < self.max_depth:
+                        queue.append((absolute, depth + 1))
+                    else:
+                        external_links.add(absolute.split("#", 1)[0])
                 else:
                     external_links.add(absolute.split("#", 1)[0])
 
