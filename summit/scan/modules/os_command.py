@@ -51,13 +51,13 @@ class OsCommandInjectionCheck(Check):
             return []  # markers already present - cannot attribute execution to us
         for label, exec_payload, control_payload in _variants():
             exec_response = client.send(
-                point.request.with_query_param(point.param, point.original_value + exec_payload)
+                point.with_value(point.original_value + exec_payload)
             )
             exec_count = exec_response.text.count(EXEC_MARKER)
             if exec_count == 0:
                 continue
             control_response = client.send(
-                point.request.with_query_param(point.param, point.original_value + control_payload)
+                point.with_value(point.original_value + control_payload)
             )
             control_count = control_response.text.count(CONTROL_MARKER)
             if control_count >= exec_count:

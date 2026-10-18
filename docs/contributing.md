@@ -9,20 +9,20 @@ Every active check is a class. Study `summit/scan/modules/xss.py` - it is the re
 ```python
 class XssReflectCheck(Check):
     check_id = "xss-reflection"     # unique id, used in reports and CI gates
-    title = "Reflected XSS (potential)"
+    title = "Reflected XSS"
     severity = "high"
 
     def run(self, point: InjectionPoint, client: HttpClient) -> list[Finding]:
         # point = one injectable parameter on one request
         # client = the shared HTTP client (rate limiting and retries included)
         ...
-        return [Finding(..., confidence="confirmed" | "potential", evidence=...)]
+        return [Finding(..., confidence="confirmed" | "likely" | "needs-manual" | "info", evidence=...)]
 ```
 
 Rules that keep the report trustworthy:
 
 1. baseline-diff everything - compare against the same request untouched
-2. set `confidence` honestly: `confirmed` only for observed facts
+2. set `confidence` honestly: `confirmed` only for observed facts - the label caps severity (`likely` -> max medium, `needs-manual` -> max low)
 3. safe defaults: probe hosts that cannot resolve, no third-party callback servers
 4. register in `summit/scan/modules/__init__.py`
 5. add at least one test; `examples/vuln_app.py` is your live target
@@ -34,7 +34,7 @@ Issues labeled [good first issue](https://github.com/pennacle-security/summit/la
 ## Ground rules
 
 - Python 3.10+, stdlib + requests. New dependencies need a discussion first.
-- `pytest -q` must pass; `python examples/evidence.py` must end `11/11 claims verified`.
+- `pytest -q` must pass; `python examples/evidence.py` must end `27/27 claims verified`.
 - Commits: short imperative subject, lowercase, no fluff.
 
 ## Questions

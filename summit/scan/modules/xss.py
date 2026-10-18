@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ...http.client import HttpClient
 from ..core import Check, Finding, InjectionPoint
+from ..runtime import deep
 
 # Stage 1 marker: a canary string that should never appear in a real page.
 # If the parameter does not reflect it, the parameter is not reflected at
@@ -11,7 +12,7 @@ CANARY = "sx9summitcanaryx9s"
 
 # Stage 2 payloads. HTML-breaking payloads that come back raw are a strong
 # signal; the javascript: scheme payload only proves reflection, so it
-# stays at "potential".
+# stays at "likely".
 PAYLOADS = [
     '"><svg/onload=alert(1)>',
     "'\"><img src=x onerror=alert(1)>",
@@ -21,32 +22,43 @@ PAYLOADS = [
     "javascript:alert(1)",
 ]
 
+# Deep mode: contextual variants aimed at filter-heavy targets.
+DEEP_PAYLOADS = [
+    '<img src=x onerror=alert(1)>',
+    '"><details open ontoggle=alert(1)>',
+    '"><video><source onerror=alert(1)>',
+    "<svg><script>alert(1)</script>",
+    "' onfocus='alert(1)' autofocus='",
+    '"><iframe srcdoc="<script>alert(1)</script>">',
+]
+
 
 class XssReflectCheck(Check):
     check_id = "xss-reflection"
-    title = "Reflected XSS (potential)"
+    title = "Reflected XSS"
     severity = "high"
 
     def run(self, point: InjectionPoint, client: HttpClient) -> list[Finding]:
         # Stage 1: cheap canary probe. No reflection -> no payload spraying.
-        canary_response = client.send(point.request.with_query_param(point.param, CANARY))
+        canary_response = client.send(point.with_value(CANARY))
         if CANARY not in canary_response.text:
             return []
 
         # Stage 2: the parameter reflects raw input, so try context payloads.
-        for payload in PAYLOADS:
-            request = point.request.with_query_param(point.param, payload)
+        payloads = (PAYLOADS + DEEP_PAYLOADS) if deep() else PAYLOADS
+        for payload in payloads:
+            request = point.with_value(payload)
             response = client.send(request)
             if payload in response.text:
                 confirmed = "<" in payload
                 return [
                     Finding(
                         check_id=self.check_id,
-                        title="Reflected XSS" if confirmed else "Reflected XSS (potential)",
+                        title="Reflected XSS" if confirmed else "Reflected XSS (reflection only)",
                         severity=self.severity,
                         url=point.request.url,
                         param=point.param,
-                        confidence="confirmed" if confirmed else "potential",
+                        confidence="confirmed" if confirmed else "likely",
                         detail=(
                             f"Parameter '{point.param}' reflects input unencoded and the payload "
                             f"{payload!r} lands in the response. Confirm execution context in a browser."

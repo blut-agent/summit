@@ -26,7 +26,7 @@ PROBES = [
 
 class FormatStringCheck(Check):
     check_id = "format-string"
-    title = "Format string injection (potential)"
+    title = "Format string injection"
     severity = "high"
 
     def run(self, point: InjectionPoint, client: HttpClient) -> list[Finding]:
@@ -34,7 +34,7 @@ class FormatStringCheck(Check):
         baseline_hex = set(re.findall(r"[0-9a-f]{4,8}", baseline.text))
 
         for payload, description in PROBES:
-            request = point.request.with_query_param(point.param, point.original_value + payload)
+            request = point.with_value(point.original_value + payload)
             response = client.send(request)
 
             if payload not in response.text:

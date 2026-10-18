@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ...http.client import HttpClient
 from ..core import Check, Finding, InjectionPoint
+from ..runtime import deep
 
 # .example never resolves, so this probe can not hit a real third party.
 REDIRECT_TARGET = "summit-open-redirect-probe.example"
@@ -10,6 +11,14 @@ PAYLOADS = [
     f"https://{REDIRECT_TARGET}/",
     f"//{REDIRECT_TARGET}/",
     f"/\\{REDIRECT_TARGET}/",
+]
+
+# Deep mode: parsing quirks that survive naive "must start with our host" checks.
+DEEP_PAYLOADS = [
+    f"////{REDIRECT_TARGET}/",
+    f"https:{REDIRECT_TARGET}/",
+    f"/%2F%2F{REDIRECT_TARGET}/",
+    f"/\\/\\{REDIRECT_TARGET}/",
 ]
 
 _URL_PARAM_HINTS = ("url", "redirect", "next", "return", "goto", "link", "target", "dest", "continue")
@@ -30,8 +39,9 @@ class OpenRedirectCheck(Check):
     def run(self, point: InjectionPoint, client: HttpClient) -> list[Finding]:
         if not self._is_url_like(point):
             return []
-        for payload in PAYLOADS:
-            request = point.request.with_query_param(point.param, payload)
+        payloads = (PAYLOADS + DEEP_PAYLOADS) if deep() else PAYLOADS
+        for payload in payloads:
+            request = point.with_value(payload)
             response = client.send(request)
             if response.status in (301, 302, 303, 307, 308) and REDIRECT_TARGET in response.header("location"):
                 return [
@@ -57,7 +67,7 @@ class OpenRedirectCheck(Check):
                             severity=self.severity,
                             url=point.request.url,
                             param=point.param,
-                            confidence="potential",
+                            confidence="likely",
                             detail=f"Parameter '{point.param}' is reflected into a client-side redirect construct.",
                             evidence=REDIRECT_TARGET,
                             remediation="Validate redirect targets against a server-side allowlist.",

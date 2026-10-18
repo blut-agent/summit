@@ -1,23 +1,28 @@
 # Report Formats
 
-Summit outputs findings in six formats. Every format carries the same data: confidence label, CWE, CVE, impact statement, remediation, and complete untruncated evidence.
+Summit outputs findings in five formats. Every format carries the same data: confidence label, CWE, CVE, impact statement, remediation, and complete untruncated evidence.
 
 ## Console
 
 The default output. Human-readable, sorted by severity, with per-severity breakdown:
 
 ```
-Summit report - http://target.local
-============================================================
-Total findings: 113  (critical 4, high 18, medium 14, low 24, info 53)
+── Summit report · http://target.local ─────────────────────────────
 
-[CRITICAL]
-  SQL injection (error-based)  (sqli-error)  [confirmed]  CWE-89
-    URL: http://target.local/user?id=1  param: id
-    Detail: Parameter 'id' triggered a MySQL error...
-    Evidence: unrecognized token
-    Impact: Full database access: read, modify or destroy every record.
-    Fix: Use parameterized queries / prepared statements.
+  Total findings: 127
+  ███████████████████████████████████████████
+  [CRITICAL] 3 [HIGH] 17 [MEDIUM] 10 [LOW] 38 [INFO] 59
+
+
+  [CRITICAL]
+
+    SQL injection (error-based)
+      sqli-error  ·  confirmed  ·  CWE-89
+      URL: http://target.local/user?id=1  param: id
+      Detail: Parameter 'id' triggered a MySQL error...
+      Evidence: `unrecognized token`
+      Impact: Full database access: read, modify or destroy every record.
+      Fix: Use parameterized queries / prepared statements.
 ```
 
 ## JSON
@@ -26,8 +31,8 @@ Machine-readable. Every field is present, evidence is never truncated:
 
 ```json
 {
-  "generated": "2026-10-17T12:00:00+00:00",
-  "total": 113,
+  "generated": "2026-10-18T12:00:00+00:00",
+  "total": 127,
   "findings": [{
     "check_id": "sqli-error",
     "title": "SQL injection (error-based)",

@@ -99,7 +99,7 @@ class JwtSecurityCheck(Check):
                     severity="medium",
                     url=point.request.url,
                     param=point.param,
-                    confidence="potential",
+                    confidence="needs-manual",
                     cwe="CWE-326",
                     detail=f"{issue['detail']}. If the secret is weak or leaked, "
                     "attackers can forge arbitrary claims. Test with common secrets "

@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 from ...http.client import HttpClient
 from ...http.models import HttpRequest
 from ...scan.core import Finding
+from ..runtime import deep
 
 # (path, content signatures - any one match confirms, name)
 PATH_SIGNATURES = [
@@ -25,13 +26,24 @@ PATH_SIGNATURES = [
     ("/web.config.bak", ["connectionString", "system.web"], "IIS configuration backup"),
 ]
 
+# Deep mode: more high-value paths, same content-signature rule.
+DEEP_PATH_SIGNATURES = [
+    ("/.env.local", ["APP_KEY=", "DB_PASSWORD=", "SECRET_KEY="], "environment file"),
+    ("/.env.production", ["APP_KEY=", "DB_PASSWORD=", "SECRET_KEY="], "environment file"),
+    ("/id_rsa", ["PRIVATE KEY"], "SSH private key"),
+    ("/id_ed25519", ["PRIVATE KEY"], "SSH private key"),
+    ("/docker-compose.yml", ["services:", "image:"], "docker compose manifest"),
+    ("/db.sqlite3", ["SQLite format 3"], "SQLite database"),
+]
+
 
 def run_sensitive_files(client: HttpClient, base_url: str) -> list[Finding]:
     """Check a handful of high-value paths once per scan. Content decides."""
     findings: list[Finding] = []
     split = urlsplit(base_url)
     origin = f"{split.scheme}://{split.netloc}"
-    for path, signatures, name in PATH_SIGNATURES:
+    checks = (PATH_SIGNATURES + DEEP_PATH_SIGNATURES) if deep() else PATH_SIGNATURES
+    for path, signatures, name in checks:
         try:
             response = client.send(HttpRequest(method="GET", url=origin + path))
         except Exception:

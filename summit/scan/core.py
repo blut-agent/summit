@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from urllib.parse import parse_qsl, urlencode
 
 from ..http.client import HttpClient
 from ..http.models import HttpRequest
@@ -97,6 +98,12 @@ CWE_BY_CHECK_ID = {
     "jwt-security": "CWE-347",
     "jwt-alg-none-attack": "CWE-347",
     "session-fixation": "CWE-384",
+    "ssrf": "CWE-918",
+    "xxe": "CWE-611",
+    "js-secret": "CWE-798",
+    "dom-xss": "CWE-79",
+    "trace-enabled": "CWE-693",
+    "http-methods-advertised": "CWE-650",
 }
 
 # Security impact per check: what an attacker concretely achieves, not
@@ -156,6 +163,12 @@ IMPACT_BY_CHECK_ID = {
     "graphql-introspection": "Complete schema map exposed - every type, field, and mutation visible.",
     "fuzz-dir": "Undocumented paths and files discovered - expands the attack surface map.",
     "format-string": "Stack memory read or written - information leak leading to full exploitation.",
+    "ssrf": "The server itself fetches attacker-chosen URLs - internal services, cloud metadata and localhost become reachable from outside.",
+    "xxe": "Arbitrary file read on the server via the XML parser; escalates to SSRF and denial of service on unhardened parsers.",
+    "js-secret": "Credentials readable by anyone who loads the page - billing abuse, data access and account takeover until rotated.",
+    "dom-xss": "Client-side script execution controlled through the URL - session theft and page takeover without a server reflection.",
+    "trace-enabled": "TRACE reflects requests verbatim - re-exposing cookies to cross-site scripting on legacy clients.",
+    "http-methods-advertised": "Write methods exposed to unauthenticated callers are a direct path to data tampering.",
 }
 
 
@@ -222,6 +235,34 @@ class InjectionPoint:
     param: str
     original_value: str
     location: str = "query"
+
+    def with_value(self, value: str) -> HttpRequest:
+        """Replace this parameter's value, wherever it lives.
+
+        Query parameters use the URL, form bodies are re-encoded, and
+        header locations swap the header. Every active check goes through
+        this method so one payload set covers every injection surface.
+        """
+        if self.location == "body":
+            raw = (self.request.body or b"").decode("utf-8", errors="replace")
+            pairs = parse_qsl(raw, keep_blank_values=True)
+            updated = [
+                (key, value if key == self.param else original)
+                for key, original in pairs
+            ]
+            if self.param not in {key for key, _ in pairs}:
+                updated.append((self.param, value))
+            headers = dict(self.request.headers)
+            headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
+            return HttpRequest(
+                method=self.request.method,
+                url=self.request.url,
+                headers=headers,
+                body=urlencode(updated).encode(),
+            )
+        if self.location == "header":
+            return self.request.with_header(self.param, value)
+        return self.request.with_query_param(self.param, value)
 
 
 class Check:

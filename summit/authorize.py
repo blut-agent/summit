@@ -116,7 +116,7 @@ def findings_from(results: list[AuthResult]) -> list[Finding]:
                     title="Authorization response differs only in body",
                     severity="medium",
                     url=result.url,
-                    confidence="potential",
+                    confidence="needs-manual",
                     detail=(
                         f"Roles '{result.privileged_role}' and '{result.other_role}' get the same status "
                         "but different bodies - could be personalization, could be leaking privileged data. Worth a human look."

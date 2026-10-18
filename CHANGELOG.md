@@ -4,6 +4,38 @@ All notable changes to summit are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [v1.1.0] - 2026-10-18
+
+### Added
+
+- `summit setup` - first-run wizard; saves defaults to `~/.summit/config.json`.
+- `summit oob` - out-of-band HTTP callback listener; `summit scan --oob-listen PORT`
+  confirms blind SSRF/XXE with a real callback hit.
+- `--auto-html` writes an HTML report automatically after every scan (into
+  `summit-reports/`, or the `output_dir` saved by setup).
+- `--render` scans JavaScript-rendered pages via headless Chromium
+  (optional: `pip install playwright`).
+- CNAME-level subdomain takeover verification: DNS resolution plus
+  unclaimed-service fingerprint, confirmation-only (no claiming).
+- New checks: XXE (CWE-611), out-of-band SSRF (CWE-918), DOM XSS candidate
+  (CWE-79), hardcoded secrets in client-side code (CWE-798, values redacted),
+  HTTP parameter pollution (CWE-235), TRACE / risky HTTP methods
+  (CWE-693, CWE-650).
+
+### Changed
+
+- Four confidence levels - `confirmed`, `likely`, `needs-manual`, `info` - and
+  the label now caps severity (`likely` -> max medium, `needs-manual` -> max low):
+  heuristic findings can no longer surface as critical.
+- Colorized console output and an ASCII banner; respects `NO_COLOR`,
+  `TERM=dumb` and `--no-color` (piped output stays plain).
+
+### Fixed
+
+- Redirect handling hardened: environment proxies are ignored
+  (`trust_env=False`), CRLF-shaped `Location` values get `Connection: close`,
+  and link checks no longer crash on malformed URLs.
+
 ## [v0.7.1] - 2026-10-16
 
 ### Fixed

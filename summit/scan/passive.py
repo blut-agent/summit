@@ -9,7 +9,9 @@ from ..takeover import check_takeover
 from ..waf import detect_waf
 from .core import Finding
 from .modules.cacheable import check_cacheable_sensitive
+from .modules.dom_xss import check_dom_xss
 from .modules.headers_grade import check_headers_grade
+from .modules.js_secrets import check_js_secrets
 
 SECURITY_HEADERS = [
     ("strict-transport-security", "Strict-Transport-Security", "HSTS forces browsers to use HTTPS."),
@@ -152,7 +154,7 @@ def check_server_disclosure(response: HttpResponse) -> list[Finding]:
             )
         )
         # Version banners can be matched against known CVEs - marked
-        # `potential` because banners are trivially spoofed.
+        # `needs-manual` because banners are trivially spoofed.
         for entry in detect_cves(server):
             findings.append(
                 Finding(
@@ -160,7 +162,7 @@ def check_server_disclosure(response: HttpResponse) -> list[Finding]:
                     title=f"Known CVE matches banner version: {entry['cve']}",
                     severity="high",
                     url=url,
-                    confidence="potential",
+                    confidence="needs-manual",
                     cves=[entry["cve"]],
                     detail=f"Server header advertises version {entry['version']}, which is affected by "
                     f"{entry['cve']}: {entry['description']}. Banners can be spoofed - confirm the "
@@ -188,7 +190,7 @@ def check_server_disclosure(response: HttpResponse) -> list[Finding]:
                     title=f"Known CVE matches banner version: {entry['cve']}",
                     severity="high",
                     url=url,
-                    confidence="potential",
+                    confidence="needs-manual",
                     cves=[entry["cve"]],
                     detail=f"X-Powered-By advertises version {entry['version']}, affected by {entry['cve']}: {entry['description']}.",
                     evidence=f"{powered} -> {entry['cve']}",
@@ -276,7 +278,7 @@ def check_body_cves(response: HttpResponse) -> list[Finding]:
             title=f"Known CVE(s) in frontend libraries: {', '.join(cve_ids)}",
             severity="medium",
             url=response.request.url,
-            confidence="potential",
+            confidence="needs-manual",
             cves=cve_ids,
             detail=f"The page loads libraries with known CVEs ({versions}): {descriptions}. "
             "Confirm the exact deployed version before reporting - some sites rename bundles.",
@@ -301,6 +303,8 @@ def run_passive(response: HttpResponse) -> list[Finding]:
         check_cacheable_sensitive,
         check_headers_grade,
         check_body_cves,
+        check_js_secrets,
+        check_dom_xss,
     ):
         findings.extend(checker(response))
     return findings

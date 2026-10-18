@@ -27,6 +27,12 @@ from summit.http.models import HttpRequest  # noqa: E402
 from summit.scan.core import InjectionPoint  # noqa: E402
 from summit.scan.engine import ScanEngine  # noqa: E402
 from summit.scan.modules.waf_bypass import PAYLOAD  # noqa: E402
+from summit.scan.modules.dom_xss import check_dom_xss  # noqa: E402
+from summit.scan.modules.http_methods import run_http_methods  # noqa: E402
+from summit.scan.modules.js_secrets import check_js_secrets  # noqa: E402
+from summit.scan.modules.ssrf import SsrfCheck  # noqa: E402
+from summit.scan.modules.xxe import run_xxe  # noqa: E402
+from summit.oob import OobServer  # noqa: E402
 from summit.captcha import detect_challenge  # noqa: E402
 from summit.toolkit import jwt_decode  # noqa: E402
 from summit.updates import is_outdated  # noqa: E402
@@ -42,7 +48,17 @@ def claim(name: str, ok: bool, evidence: str) -> None:
     print(f"[{'PASS' if ok else 'FAIL'}] {name}\n       {evidence}")
 
 
+def _reconfigure_stdio() -> None:
+    """Force UTF-8 on Windows consoles so arrows/glyphs survive pipes."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main() -> int:
+    _reconfigure_stdio()
     server = ThreadingHTTPServer(("127.0.0.1", PORT), DemoHandler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
@@ -60,12 +76,13 @@ def main() -> int:
             "path-traversal", "linkcheck-dead-domain", "waf-bypass", "waf-detected", "captcha-challenge",
             "takeover-signature", "host-header-injection", "cors-reflection",
             "os-command-injection", "ssti", "crlf-injection", "sensitive-file",
+            "xxe", "trace-enabled", "js-secret", "dom-xss",
         }
         missing = expected - check_ids
         control_fp = [f.url for f in findings if f.url.startswith("https://example.com")]
         confirmed = sum(1 for f in findings if f.confidence == "confirmed")
         claim(
-            "full scan: 16 seeded check families detected, zero false positives",
+            "full scan: 20 seeded check families detected, zero false positives",
             not missing and not control_fp,
             f"{len(findings)} findings in {engine.elapsed:.1f}s ({client.request_count} requests), "
             f"missing={sorted(missing) if missing else 'none'}, control link flagged={control_fp or 'no'}, "
@@ -226,7 +243,7 @@ def main() -> int:
         )
 
         # --- 10. param miner: the undocumented debug parameter must be discovered,
-        #         and the ~70 other candidates must stay quiet
+        #         and the ~120 other candidates must stay quiet
         from summit.paramminer import mine  # noqa: E402
         mined = mine(client, f"{BASE}/debug")
         reflected = [f for f in mined if f.check_id == "paramminer-reflected" and f.param == "debug"]
@@ -307,7 +324,7 @@ def main() -> int:
         time_findings = SqliTimeCheck(delay_threshold=0.2, repetitions=2).run(time_point, client)
         claim(
             "time-based SQL injection: reproducible delay detected and calibrated",
-            time_findings and time_findings[0].confidence == "potential",
+            time_findings and time_findings[0].confidence == "likely",
             time_findings[0].evidence if time_findings else "not found",
         )
 
@@ -317,6 +334,94 @@ def main() -> int:
             "GraphQL introspection detected on a production-looking endpoint",
             gql is not None and gql.confidence == "confirmed" and "__schema" in gql.evidence,
             f"{gql.evidence if gql else 'not found'} | {cwe_for('graphql-introspection') or 'CWE-200'}",
+        )
+
+        # --- 19. frontend CVE detection: jQuery + WordPress on the same page
+        body_cves = next((f for f in findings if f.check_id == "cve-detected" and f.cves), None)
+        expected_cves = {"CVE-2020-11023", "CVE-2021-29447"}
+        claim(
+            "frontend CVE detection: jQuery 3.4.1 + WordPress 5.7.1 map to known CVEs",
+            body_cves is not None and expected_cves.issubset(set(body_cves.cves)),
+            f"{body_cves.cves if body_cves else 'not found'} ({body_cves.evidence if body_cves else ''})",
+        )
+
+        # --- 20. SSRF, out-of-band confirmed: a real listener records the
+        #         server's callback; the same check stays silent on a plain
+        #         redirector - redirects are not fetches (negative control)
+        oob = OobServer(port=0)
+        oob.start()
+        try:
+            fetch_point = InjectionPoint(
+                request=HttpRequest(method="GET", url=f"{BASE}/fetch?url=http://127.0.0.1:8765/"),
+                param="url",
+                original_value="http://127.0.0.1:8765/",
+            )
+            ssrf_hits = SsrfCheck(
+                oob.base_url,
+                hit_checker=lambda token: oob.wait_for(token, timeout=2.0) is not None,
+            ).run(fetch_point, client)
+            redirect_point = InjectionPoint(
+                request=HttpRequest(method="GET", url=f"{BASE}/redirect?url=https://example.com"),
+                param="url",
+                original_value="https://example.com",
+            )
+            redirect_hits = SsrfCheck(
+                oob.base_url,
+                hit_checker=lambda token: oob.wait_for(token, timeout=1.0) is not None,
+            ).run(redirect_point, client)
+            ssrf = ssrf_hits[0] if ssrf_hits else None
+            callback_log = oob.hits[0].summary() if oob.hits else "no callbacks"
+            claim(
+                "SSRF confirmed out-of-band: the server fetched our callback URL",
+                ssrf is not None and ssrf.confidence == "confirmed" and bool(oob.hits) and not redirect_hits,
+                f"{ssrf.evidence if ssrf else 'not found'}; callback log: {callback_log}; "
+                f"redirector control: {'silent' if not redirect_hits else 'FIRED (false positive!)'}",
+            )
+        finally:
+            oob.stop()
+
+        # --- 21. XXE: the import endpoint resolves our external entity and
+        #         hands back virtual-filesystem file content
+        xxe_findings = run_xxe(client, spider_result.get("forms", []), BASE)
+        xxe = xxe_findings[0] if xxe_findings else None
+        claim(
+            "XXE: external entity resolved, local file content returned",
+            xxe is not None and xxe.confidence == "confirmed" and "root:x" in xxe.evidence,
+            f"{xxe.evidence if xxe else 'not found'} | {cwe_for('xxe')}",
+        )
+
+        # --- 22. TRACE enabled: the server echoed our probe marker back
+        method_findings = run_http_methods(client, BASE)
+        trace = next((f for f in method_findings if f.check_id == "trace-enabled"), None)
+        claim(
+            "TRACE enabled: probe marker header echoed back",
+            trace is not None and trace.confidence == "confirmed" and "9f3c2a" in trace.evidence,
+            f"{trace.evidence if trace else 'not found'} | {cwe_for('trace-enabled')}",
+        )
+
+        # --- 23. hardcoded secret in the JS bundle: found, redacted, and
+        #         honestly labelled likely - a demo key is not a live credential
+        app_js = client.send(HttpRequest(method="GET", url=f"{BASE}/app.js"))
+        secret_findings = check_js_secrets(app_js)
+        secret = secret_findings[0] if secret_findings else None
+        raw_key = "AKIA4QZ7R2NMSEC9XK3P"
+        claim(
+            "hardcoded AWS key in the client bundle: reported likely, value redacted",
+            secret is not None and secret.confidence == "likely" and secret.severity == "medium"
+            and "AKIA4Q\u2026XK3P" in secret.evidence and raw_key not in secret.evidence,
+            f"{secret.evidence if secret else 'not found'} | {cwe_for('js-secret')}",
+        )
+
+        # --- 24. DOM XSS candidate: static source->sink flow, capped at
+        #         needs-manual until a human confirms it in a browser
+        dom_page = client.send(HttpRequest(method="GET", url=f"{BASE}/dom"))
+        dom_findings = check_dom_xss(dom_page)
+        dom = dom_findings[0] if dom_findings else None
+        claim(
+            "DOM XSS candidate: location.hash flows into innerHTML (needs manual)",
+            dom is not None and dom.confidence == "needs-manual"
+            and "location.hash" in dom.evidence and "innerHTML" in dom.evidence,
+            f"{dom.evidence if dom else 'not found'} | {cwe_for('dom-xss')}",
         )
     finally:
         server.shutdown()

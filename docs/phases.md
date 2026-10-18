@@ -64,4 +64,4 @@ for tech in engine.technologies:
     print(f"  {tech['category']}: {tech['name']} {tech['version']}")
 ```
 
-Run `python examples/evidence.py` to see all phases verified live.
+Against the bundled demo target (`python examples/vuln_app.py`), all three phases report `OK` with zero errors.

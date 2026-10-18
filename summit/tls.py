@@ -4,7 +4,7 @@
 checks the things that bite in real engagements:
 
 - expired certificate (CWE-295, confirmed - dates do not lie)
-- certificate expiring within 14 days (low, potential)
+- certificate expiring within 14 days (low, likely)
 - self-signed certificate (CWE-295, confirmed - issuer equals subject)
 - legacy TLS versions still accepted: TLSv1.0 / TLSv1.1 (CWE-326, confirmed
   - we complete the handshake with those protocol versions ourselves)
@@ -74,7 +74,7 @@ def cert_findings(info: dict, legacy_versions: list[str], now: datetime | None =
                     title=f"Certificate expires in {days_left} day(s)",
                     severity="low",
                     url=f"https://{info.get('subject', [('?',)])[0][0][1]}",
-                    confidence="potential",
+                    confidence="likely",
                     cwe="CWE-295",
                     detail=f"The certificate valid-until date is {not_after}. Renewal windows this short usually mean automation is broken.",
                     evidence=f"notAfter: {not_after} ({days_left}d left)",

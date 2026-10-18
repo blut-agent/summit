@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import ipaddress
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlencode
 
 from ..http.client import HttpClient
+from ..http.models import HttpRequest
 from ..smart import prioritize, score_point
 from .core import Check, Finding, InjectionPoint
 from .linkcheck import check_links
 from .modules import ALL_CHECKS
+from .modules.http_methods import run_http_methods
+from .modules.takeover_cname import check_cname_takeover
+from .modules.xxe import run_xxe
 from .passive import run_passive
+from .runtime import set_deep
 
 # Tracking params are never injectable - probing them only burns requests
 # and pads reports.
@@ -28,14 +35,19 @@ def _is_probe_worthy(name: str, value: str) -> bool:
 
 
 def build_targets(spider_result: dict) -> list[InjectionPoint]:
-    """Collect injectable query parameters from every crawled page."""
+    """Collect injectable query parameters and POST form fields.
+
+    Bodies matter: login forms, search forms and API stubs take their
+    input as POST fields, and a query-only scanner never sees them.
+    One field is varied at a time so a finding maps to a single input.
+    """
     points: list[InjectionPoint] = []
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, str, str]] = set()
     skipped = 0
     for response in spider_result.get("pages", []):
         request = response.request
         for name, value in request.params.items():
-            key = (request.url, name)
+            key = (request.url, name, "query")
             if key in seen:
                 continue
             seen.add(key)
@@ -43,6 +55,31 @@ def build_targets(spider_result: dict) -> list[InjectionPoint]:
                 skipped += 1
                 continue
             points.append(InjectionPoint(request=request, param=name, original_value=value, location="query"))
+
+    for form in spider_result.get("forms", []):
+        if (form.get("method") or "").upper() != "POST":
+            continue
+        action = form.get("action") or ""
+        fields = form.get("fields") or {}
+        if not action or not fields:
+            continue
+        body = urlencode(list(fields.items())).encode()
+        request = HttpRequest(
+            method="POST",
+            url=action,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            body=body,
+        )
+        for name, value in fields.items():
+            key = (action, name, "body")
+            if key in seen:
+                continue
+            seen.add(key)
+            if not _is_probe_worthy(name, value):
+                skipped += 1
+                continue
+            points.append(InjectionPoint(request=request, param=name, original_value=value, location="body"))
+
     if skipped:
         spider_result.setdefault("notes", []).append(f"skipped {skipped} tracker/opaque parameter(s)")
     return points
@@ -58,12 +95,18 @@ class ScanEngine:
         checks: list[Check] | None = None,
         workers: int = 8,
         linkcheck_enabled: bool = True,
+        deep: bool = False,
+        takeover: bool = True,
+        oob_check: Check | None = None,
     ) -> None:
         self.client = client
         self.active = active
         self.checks = checks if checks is not None else list(ALL_CHECKS)
         self.workers = max(1, workers)
         self.linkcheck_enabled = linkcheck_enabled
+        self.deep = deep
+        self.takeover = takeover
+        self.oob_check = oob_check
         self.findings: list[Finding] = []
         self.errors: list[str] = []
         self.elapsed = 0.0
@@ -91,6 +134,7 @@ class ScanEngine:
 
     def scan(self, spider_result: dict) -> list[Finding]:
         started = time.monotonic()
+        set_deep(self.deep)
 
         for response in spider_result.get("pages", []):
             for finding in run_passive(response):
@@ -108,7 +152,10 @@ class ScanEngine:
             # interesting findings show up early in the report stream.
             targets = prioritize(build_targets(spider_result), detected_tech)
             self.high_signal = sum(1 for point in targets if score_point(point) >= 2)
-            tasks = [(check, point) for check in self.checks for point in targets]
+            checks = list(self.checks)
+            if self.oob_check is not None:
+                checks.append(self.oob_check)
+            tasks = [(check, point) for check in checks for point in targets]
             if tasks:
                 with ThreadPoolExecutor(max_workers=self.workers) as pool:
                     futures = [pool.submit(self._run_check, check, point) for check, point in tasks]
@@ -161,6 +208,36 @@ class ScanEngine:
                         self.add(finding)
                 except Exception as exc:
                     self.errors.append(f"directory-listing check failed: {exc}")
+                try:
+                    for finding in run_http_methods(self.client, base):
+                        self.add(finding)
+                except Exception as exc:
+                    self.errors.append(f"http-methods check failed: {exc}")
+                try:
+                    for finding in run_xxe(self.client, spider_result.get("forms", []), base):
+                        self.add(finding)
+                except Exception as exc:
+                    self.errors.append(f"xxe check failed: {exc}")
+                if self.takeover:
+                    host = origin.hostname or ""
+                    if self._takeover_worthy(host):
+                        try:
+                            for finding in check_cname_takeover(self.client, [host]):
+                                self.add(finding)
+                        except Exception as exc:
+                            self.errors.append(f"cname takeover check failed: {exc}")
 
         self.elapsed = time.monotonic() - started
         return self.findings
+
+    @staticmethod
+    def _takeover_worthy(host: str) -> bool:
+        """Skip IPs and local names - there is no CNAME chain to hijack."""
+        lowered = host.lower()
+        if lowered in ("localhost",) or lowered.endswith(".local"):
+            return False
+        try:
+            ipaddress.ip_address(lowered)
+            return False
+        except ValueError:
+            return True

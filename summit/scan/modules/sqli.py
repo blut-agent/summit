@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ...http.client import HttpClient
 from ..core import Check, Finding, InjectionPoint
+from ..runtime import deep
 
 ERROR_SIGNATURES = {
     "MySQL": ["You have an error in your SQL syntax", "Warning: mysqli_", "MySQLSyntaxErrorException"],
@@ -18,11 +19,22 @@ class SqliErrorCheck(Check):
     severity = "critical"
 
     PROBES = ["'", '"', "')", "1' OR '1'='1"]
+    # Deep mode: function-based errors that name the engine, plus
+    # quote-balancing variants that escaping alone never reaches.
+    DEEP_PROBES = [
+        "%27",
+        "1 AND extractvalue(1,concat(0x7e,version()))",
+        "' AND updatexml(1,concat(0x7e,version()),1)-- -",
+        "') OR ('1'='1",
+        "\\",
+        "1 OR 1=CONVERT(int, @@version)-- -",
+    ]
 
     def run(self, point: InjectionPoint, client: HttpClient) -> list[Finding]:
         baseline = client.send(point.request).text
-        for probe in self.PROBES:
-            request = point.request.with_query_param(point.param, point.original_value + probe)
+        probes = (self.PROBES + self.DEEP_PROBES) if deep() else self.PROBES
+        for probe in probes:
+            request = point.with_value(point.original_value + probe)
             body = client.send(request).text
             for db, signatures in ERROR_SIGNATURES.items():
                 for signature in signatures:
@@ -45,7 +57,7 @@ class SqliErrorCheck(Check):
 
 class SqliBooleanCheck(Check):
     check_id = "sqli-boolean"
-    title = "SQL injection (boolean-based, potential)"
+    title = "SQL injection (boolean-based)"
     severity = "critical"
 
     def run(self, point: InjectionPoint, client: HttpClient) -> list[Finding]:
@@ -53,8 +65,8 @@ class SqliBooleanCheck(Check):
         if not original.isdigit():
             return []
         base_response = client.send(point.request)
-        true_response = client.send(point.request.with_query_param(point.param, f"{original} AND 1=1"))
-        false_response = client.send(point.request.with_query_param(point.param, f"{original} AND 1=2"))
+        true_response = client.send(point.with_value(f"{original} AND 1=1"))
+        false_response = client.send(point.with_value(f"{original} AND 1=2"))
         if true_response.status != 200 or false_response.status != 200:
             return []
         len_true = len(true_response.body)
@@ -68,7 +80,7 @@ class SqliBooleanCheck(Check):
                     severity=self.severity,
                     url=point.request.url,
                     param=point.param,
-                    confidence="potential",
+                    confidence="likely",
                     detail=(
                         f"Numeric parameter '{point.param}' returns different response sizes for "
                         f"'{original} AND 1=1' vs '{original} AND 1=2' while matching the baseline otherwise. "

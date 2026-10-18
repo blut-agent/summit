@@ -23,14 +23,14 @@ No internet needed for the core demo. The target binds to 127.0.0.1 only.
 
 | Area | Coverage |
 |---|---|
-| Scanner | passive checks (headers, cookies, error leaks, CORS, WAF, CAPTCHA, takeover) + active checks (SQLi, XSS, WAF bypass, host header, CORS, redirect, traversal) |
+| Scanner | passive checks (headers, cookies, error leaks, CORS, WAF, CAPTCHA, takeover, JS secrets, CSRF, cache hygiene) + active checks (SQLi error/boolean/time, XSS and DOM-XSS candidates, WAF bypass, host header, CORS, redirect, traversal, XXE, SSRF, command injection, SSTI, CRLF, HPP, HTTP method hygiene) |
 | Link health | broken-link hijacking: dead domains, parked domains, private-range guard |
 | Fuzzing | directory brute force with wildcard-baseline false-positive filtering |
 | Proxy | intercepting HTTP proxy with a SQLite site map |
 | Recon | chains subfinder -> httpx -> nmap, with honest failure notes |
 | Toolkit | JWT / base64 / URL / hex encode & decode |
 
-Findings carry **confidence labels**: `confirmed` means an observed fact, `potential` means a heuristic. That distinction runs through the whole tool.
+Findings carry **confidence labels**: `confirmed` (observed fact), `likely` (strong evidence), `needs-manual` (heuristic for a human), `info` - and the label caps severity, so a heuristic can never pose as critical. That distinction runs through the whole tool.
 
 ## Legal
 

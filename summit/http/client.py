@@ -6,13 +6,14 @@ import time
 import requests
 import urllib3
 
+from .. import __version__
 from ..ratelimit import RateLimiter
 from .models import HttpRequest, HttpResponse
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 DEFAULT_HEADERS = {
-    "User-Agent": "Summit/0.1 (+https://github.com/pennacle-security/summit)",
+    "User-Agent": f"Summit/{__version__} (+https://github.com/pennacle-security/summit)",
     "Accept-Language": "en-US,en;q=0.9",
 }
 
@@ -42,6 +43,12 @@ class HttpClient:
         self.request_count = 0
         self._count_lock = threading.Lock()
         self.session = requests.Session()
+        # Scans stay deterministic: never inherit proxy/TLS settings from the
+        # environment. This also keeps requests' eager redirect-target parsing
+        # (Response.next is computed even with allow_redirects=False) away from
+        # hostile Location headers, which could otherwise raise ValueError
+        # mid-send on a crafted 3xx target.
+        self.session.trust_env = False
         self.session.headers.update(DEFAULT_HEADERS)
         if user_agent:
             self.session.headers["User-Agent"] = user_agent

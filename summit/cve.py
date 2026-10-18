@@ -5,7 +5,7 @@ Ranges are matched with `packaging.version` (proper semantic comparison,
 not string tricks); products whose versions are not PEP-440 shaped
 (OpenSSL's `1.0.1f`) fall back to explicit exact-version lists.
 
-Every finding is marked `potential` - banners are trivially spoofed.
+Every finding is marked `needs-manual` - banners are trivially spoofed.
 Extend the table via PRs; entries must cite the CVE id and what it
 allows, and ranges must be defensible from the advisory.
 """

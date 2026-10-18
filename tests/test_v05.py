@@ -83,7 +83,7 @@ def test_hidden_parameter_mined_live():
         reflected = [f for f in findings if f.check_id == "paramminer-reflected" and f.param == "debug"]
         assert len(reflected) == 1
         assert reflected[0].confidence == "confirmed"
-        # the other ~70 candidates must stay quiet - no false positives
+        # the other ~120 candidates must stay quiet - no false positives
         assert all(f.param == "debug" for f in findings)
     finally:
         server.shutdown()

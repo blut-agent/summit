@@ -42,7 +42,7 @@ def test_check_body_cves_produces_finding_with_cve():
     findings = check_body_cves(make_response('<script src="jquery-3.4.1.min.js"></script>'))
     assert len(findings) == 1
     assert findings[0].cves == ["CVE-2020-11023"]
-    assert findings[0].confidence == "potential"
+    assert findings[0].confidence == "needs-manual"
 
 
 def test_clean_body_is_quiet():

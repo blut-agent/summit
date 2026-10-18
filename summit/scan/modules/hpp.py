@@ -44,10 +44,14 @@ class HppCheck(Check):
         baseline = client.send(point.request)
 
         # If BOTH markers appear in the response, the server concatenates
-        # or processes both values - that is HPP.
+        # or processes both values - that is HPP. A page that merely echoes
+        # the raw query string proves reflection, not dual processing, so
+        # that case stays silent instead of becoming a false positive.
+        sent_query = f"{point.param}={marker_a}&{point.param}={marker_b}"
+        echoed_raw_query = sent_query in response.text or sent_query.replace("&", "&amp;") in response.text
         if marker_a in response.text and marker_b in response.text:
-            if marker_a in baseline.text or marker_b in baseline.text:
-                return []  # markers already present - not attributable to us
+            if echoed_raw_query or marker_a in baseline.text or marker_b in baseline.text:
+                return []  # raw echo / already present - not attributable to us
             return [
                 Finding(
                     check_id=self.check_id,
@@ -80,7 +84,7 @@ class HppCheck(Check):
                         severity="low",
                         url=point.request.url,
                         param=point.param,
-                        confidence="potential",
+                        confidence="needs-manual",
                         detail=(
                             f"Parameter '{point.param}' appears twice and the server only uses the "
                             "last value. If a WAF or proxy checks the first value, this creates "

@@ -24,28 +24,51 @@ summit scan http://127.0.0.1:8765
 You should see output like this (abbreviated):
 
 ```
-[*] crawling http://127.0.0.1:8765 ...
-[*] visited 30 page(s), 5 outbound link(s), 0 request error(s)
-[*] 706 request(s) in 30.1s (workers=8, rate=50.0, retries=1)
-[*] smart order: 9 high-signal injection point(s) probed first
+▲ SUMMIT v1.1.0 · pennacle security
+│ ▸ RECON crawling http://127.0.0.1:8765 (depth=3, max_pages=50) ...
+│ ▸ RECON visited 26 page(s), 1 form(s), 4 outbound link(s), 0 request error(s)
+│ ▸ RECON completed in 0.4s
+│ ▸ SCAN running passive + active checks (workers=8) ...
+│ ▸ SCAN completed in 2.5s - 127 raw finding(s)
+│ ▸ DONE 937 request(s) in 2.9s (workers=8, rate=unlimited, retries=1)
+│ ▸ DONE smart order: 12 high-signal injection point(s) probed first
 
-Summit report - http://127.0.0.1:8765
-============================================================
-Total findings: 113  (critical 4, high 18, medium 14, low 24, info 53)
+── Summit report · http://127.0.0.1:8765 ───────────────────────────
 
-[CRITICAL]
-  SQL injection (error-based)  (sqli-error)  [confirmed]  CWE-89
-    Evidence: unrecognized token
+  Total findings: 127
+  ███████████████████████████████████████████
+  [CRITICAL] 3 [HIGH] 17 [MEDIUM] 10 [LOW] 38 [INFO] 59
 
-  Broken access control  (authorize-bypass)  [confirmed]  CWE-639
-    Evidence: both roles: HTTP 200, 145 bytes
 
-[HIGH]
-  Reflected XSS  (xss-reflection)  [confirmed]  CWE-79
-    Evidence: "><svg/onload=alert(1)>
+  [CRITICAL]
 
-  OS command injection  (os-command-injection)  [confirmed]  CWE-78
-    Evidence: semicolon: exec marker x2, control marker x1
+    Server-side template injection (RCE candidate)
+      ssti  ·  confirmed  ·  CWE-1336
+      URL: http://127.0.0.1:8765/greet?name=world  param: name
+      Evidence: `Jinja2/Twig: {{7*7}} -> 49`
+
+    OS command injection
+      os-command-injection  ·  confirmed  ·  CWE-78
+      URL: http://127.0.0.1:8765/ping?host=demo.local  param: host
+      Evidence: `semicolon: exec marker x2, control marker x1`
+
+    SQL injection (error-based)
+      sqli-error  ·  confirmed  ·  CWE-89
+      URL: http://127.0.0.1:8765/user?id=1  param: id
+      Evidence: `unrecognized token`
+
+
+  [HIGH]
+
+    TRACE method enabled (Cross-Site Tracing surface)
+      trace-enabled  ·  confirmed  ·  CWE-693
+      URL: http://127.0.0.1:8765
+      Evidence: `TRACE http://127.0.0.1:8765 echoed X-Summit-Trace: summit-trace-probe-9f3c2a`
+
+    Sensitive file exposed: /.env
+      sensitive-file  ·  confirmed  ·  CWE-538
+      URL: http://127.0.0.1:8765/.env
+      Evidence: `content signature: 'APP_KEY='`
 ```
 
 ## Reproduce every claim
@@ -54,7 +77,7 @@ Total findings: 113  (critical 4, high 18, medium 14, low 24, info 53)
 python examples/evidence.py
 ```
 
-This runs the demo target, measures each feature, and prints PASS/FAIL with real numbers. 22 claims, all verified. CI runs this on every push.
+This runs the demo target, measures each feature, and prints PASS/FAIL with real numbers. 27 claims, all verified. CI runs this on every push.
 
 ## What just happened
 

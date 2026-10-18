@@ -27,7 +27,7 @@ NOSQL_PAYLOADS = [
 
 class NosqlInjectionCheck(Check):
     check_id = "nosql-injection"
-    title = "NoSQL injection (potential)"
+    title = "NoSQL injection"
     severity = "critical"
 
     def run(self, point: InjectionPoint, client: HttpClient) -> list[Finding]:
@@ -53,7 +53,7 @@ class NosqlInjectionCheck(Check):
                     severity=self.severity,
                     url=point.request.url,
                     param=injected_param,
-                    confidence="potential",
+                    confidence="likely",
                     detail=(
                         f"Injecting {payload_suffix} on parameter '{point.param}' changed the "
                         f"response (HTTP {baseline.status}/{len(baseline.body)}B -> "

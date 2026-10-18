@@ -9,7 +9,7 @@ the noisiest class of SQL injection testing, so the rules are strict:
   threshold relative to that baseline
 - the injected delay is capped - a detector never asks a database to
   sleep longer than the threshold it was configured with
-- the finding is `potential`, never `confirmed`: network jitter can
+- the finding is `likely`, never `confirmed`: network jitter can
   fake a delay, and only a human reading the response behavior can
   close that gap
 
@@ -32,7 +32,7 @@ _PAYLOAD_FAMILIES = (
 
 class SqliTimeCheck(Check):
     check_id = "sqli-time"
-    title = "SQL injection (time-based blind, potential)"
+    title = "SQL injection (time-based blind)"
     severity = "critical"
 
     def __init__(self, delay_threshold: float = 2.0, repetitions: int = 2) -> None:
@@ -58,7 +58,7 @@ class SqliTimeCheck(Check):
 
         for family, template in _PAYLOAD_FAMILIES:
             payload = template.format(d=delay)
-            request = point.request.with_query_param(point.param, point.original_value + payload)
+            request = point.with_value(point.original_value + payload)
             samples = [self._measure(client, request) for _ in range(self.repetitions)]
             if all(sample - base_mean >= margin for sample in samples):
                 return [
@@ -68,12 +68,12 @@ class SqliTimeCheck(Check):
                         severity=self.severity,
                         url=point.request.url,
                         param=point.param,
-                        confidence="potential",
+                        confidence="likely",
                         detail=(
                             f"Parameter '{point.param}' shows a reproducible delay with a {family} "
                             f"time payload ({delay}s): all {self.repetitions} probes exceeded the "
                             f"baseline by at least {margin:.1f}s (baseline {base_mean:.2f}s). "
-                            "Time-based findings are always `potential` - verify manually with "
+                            "Time-based findings are always `likely` - verify manually with "
                             "varying delays before reporting."
                         ),
                         evidence=f"{family}: baseline {base_mean:.2f}s, probes "

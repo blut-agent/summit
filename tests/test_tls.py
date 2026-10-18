@@ -20,10 +20,10 @@ def test_expired_certificate_flagged():
     assert all(f.cwe == "CWE-295" for f in findings if f.check_id == "tls-cert-expired")
 
 
-def test_expiring_soon_flagged_as_potential():
+def test_expiring_soon_flagged_as_likely():
     soon = (datetime.now(timezone.utc) + timedelta(days=5)).strftime("%b %d %H:%M:%S %Y GMT")
     findings = cert_findings(decoded_cert(soon), legacy_versions=[])
-    assert any(f.check_id == "tls-cert-expiring" and f.confidence == "potential" for f in findings)
+    assert any(f.check_id == "tls-cert-expiring" and f.confidence == "likely" for f in findings)
 
 
 def test_self_signed_flagged():

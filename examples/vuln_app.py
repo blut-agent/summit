@@ -34,6 +34,11 @@ Seeded vulnerabilities:
     - GraphQL leak        /graphql         (introspection enabled in production)
     - client CVE leak     (page references jQuery 3.4.1 + WordPress 5.7.1 banners)
     - missing security headers + version disclosure on every response
+    - SSRF (OOB)          /fetch?url=      (fetches loopback URLs only - proven via callback)
+    - XXE file read       /xml (POST)      (entities resolve against the virtual filesystem)
+    - TRACE enabled       /                (echoes the request, marker header included)
+    - hardcoded secret    /app.js          (AWS-shaped access key shipped in the bundle)
+    - DOM XSS candidate   /dom             (location.hash flows into innerHTML)
 
 The "partner" link (https://example.com) is a live negative control: a
 healthy outbound link (HTTP 200) must NOT be reported.
@@ -44,6 +49,7 @@ import re
 import sqlite3
 import threading
 import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -72,6 +78,9 @@ PAGE = """<!doctype html>
   <li><a href="/ping?host=demo.local">ping</a></li>
   <li><a href="/greet?name=world">greet</a></li>
   <li><a href="/goto?to=/">goto</a></li>
+  <li><a href="/fetch?url=http://127.0.0.1:8765/">fetch</a></li>
+  <li><a href="/xml">xml</a></li>
+  <li><a href="/dom">dom</a></li>
   <li><a href="/.env">env</a></li>
   <li><a href="/graphql">graphql</a></li>
   <li><a href="/register?email=demo@demo.local">register</a></li>
@@ -294,6 +303,12 @@ class DemoHandler(BaseHTTPRequestHandler):
             self.send_response(302)
             self.send_header("Location", target)
             self.send_header("Content-Length", "0")
+            if "\n" in target or "\r" in target:
+                # Injected CR/LF breaks this response's framing - a strict
+                # client would wait for a body that never comes. One
+                # response per connection so every client still completes.
+                self.send_header("Connection", "close")
+                self.close_connection = True
             self.end_headers()
 
         elif path == "/.env":
@@ -339,9 +354,13 @@ class DemoHandler(BaseHTTPRequestHandler):
             self._html(body)
 
         elif path == "/app.js":
-            # Hidden endpoint: only referenced from JavaScript - a plain
+            # Vulnerable: the bundle ships an AWS-shaped access key, and the
+            # internal endpoint is only referenced from JavaScript - a plain
             # <a href> crawler never finds it, the AJAX-spider pass does.
-            body = b"fetch('/api/secret?token=abc123');\n"
+            body = (
+                "const AWS_ACCESS_KEY_ID = \"AKIA4QZ7R2NMSEC9XK3P\";\n"
+                "fetch('/api/secret?token=abc123');\n"
+            ).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/javascript")
             self.send_header("Content-Length", str(len(body)))
@@ -364,6 +383,12 @@ class DemoHandler(BaseHTTPRequestHandler):
             self.send_response(302)
             self.send_header("Location", target)
             self.send_header("Content-Length", "0")
+            if "\n" in target or "\r" in target:
+                # Injected CR/LF breaks this response's framing - a strict
+                # client would wait for a body that never comes. One
+                # response per connection so every client still completes.
+                self.send_header("Connection", "close")
+                self.close_connection = True
             self.end_headers()
 
         elif path == "/file":
@@ -380,8 +405,101 @@ class DemoHandler(BaseHTTPRequestHandler):
             else:
                 self._html(f"<html><body><pre>{content}</pre></body></html>")
 
+        elif path == "/fetch":
+            # Vulnerable: the server fetches a user-supplied URL - the SSRF
+            # shape. Guarded to loopback on purpose: the demo proves the
+            # detection (`summit scan --oob-listen`) without ever being
+            # usable as a proxy against a third party. Real vulnerable
+            # fetchers carry no such guard, which is why they leak cloud
+            # metadata and internal services.
+            target = query.get("url", "")
+            absolute = target if "://" in target else ("http:" + target if target.startswith("//") else target)
+            host = (urlsplit(absolute).hostname or "").lower()
+            if host in ("127.0.0.1", "localhost", "::1"):
+                outcome = "unreachable"
+                try:
+                    with urllib.request.urlopen(absolute, timeout=1.0) as fetched:
+                        outcome = f"HTTP {fetched.status}"
+                except Exception:
+                    pass
+                self._html(f"<html><body><p>Fetch complete: {outcome}.</p></body></html>")
+            else:
+                self._html("<html><body><p>Fetch skipped: this demo only calls back to localhost.</p></body></html>")
+
+        elif path == "/xml":
+            # Vulnerable: an "XML import" endpoint whose parser resolves
+            # external entities against the virtual filesystem - post the
+            # classic XXE payload and the "file contents" come back in the
+            # reply (see summit/scan/modules/xxe.py for the payload used).
+            self._html(
+                "<html><body><h1>Document import</h1>"
+                "<p>POST an XML document to this endpoint.</p></body></html>"
+            )
+
+        elif path == "/dom":
+            # Vulnerable: the page's own script reads location.hash and
+            # writes it into innerHTML - a DOM source-to-sink flow that
+            # never crosses the network, so only static analysis sees it.
+            self._html(
+                "<html><head><title>Greeter</title></head><body>"
+                "<div id=\"greeting\">Hello!</div>"
+                "<script>"
+                "function render() {"
+                "  var who = decodeURIComponent(location.hash.slice(1));"
+                "  document.getElementById(\"greeting\").innerHTML = \"Hello \" + who + \"!\";"
+                "}"
+                "render(); window.addEventListener(\"hashchange\", render);"
+                "</script></body></html>"
+            )
+
         else:
             self._html("<html><body><p>Not found.</p></body></html>", status=404)
+
+    def do_POST(self) -> None:
+        split = urlsplit(self.path)
+        # Drain the body on every POST. A keep-alive connection whose body
+        # is never read replays those bytes as the next request line
+        # (HTTP/1.1 desync), and every request after it on that connection
+        # gets a 400 instead of a real answer.
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length).decode("utf-8", "replace")
+        if split.path == "/xml":
+            # Vulnerable: the import parser resolves external entities and
+            # "reads files" for whoever asks, mapping the paths onto the
+            # virtual filesystem so nothing outside the demo is touched.
+            parts: list[str] = []
+            for match in re.finditer(r'SYSTEM\s+"file:///([^"]+)"', raw):
+                file_path = "/" + match.group(1).lstrip("/")
+                file_path = re.sub(r"^/[A-Za-z]:", "", file_path)
+                parts.append(VFS.get(file_path, ""))
+            body = "<?xml version=\"1.0\"?><import>" + "".join(parts) + "</import>"
+            data = body.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/xml")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        self._html("<html><body><p>Not found.</p></body></html>", status=404)
+
+    def do_TRACE(self) -> None:
+        # Vulnerable: TRACE hands the request back to the caller - headers
+        # and all. Legacy browsers turned that into Cross-Site Tracing;
+        # modern ones block it, but the method being enabled is a finding.
+        lines = [f"{self.command} {self.path} {self.request_version}"]
+        lines.extend(f"{key}: {value}" for key, value in self.headers.items())
+        data = ("\r\n".join(lines) + "\r\n\r\n").encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "message/http")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_OPTIONS(self) -> None:
+        self.send_response(200)
+        self.send_header("Allow", "GET, HEAD, POST, OPTIONS, TRACE")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
 
 def main() -> None:

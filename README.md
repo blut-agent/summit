@@ -18,7 +18,7 @@
 
 ---
 
-We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit now has 40+ checks across 11 families. Summit is that tool - v0.8.0, MIT, built in the open. Three dependencies (`requests`, `pyyaml`, `packaging`), all FLOSS, all standard.
+We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit now has 40+ checks across 11 families. Summit is that tool - v1.1.0, MIT, built in the open. Three dependencies (`requests`, `pyyaml`, `packaging`), all FLOSS, all standard.
 
 **Full documentation:** [pennacle-security.github.io/summit](https://pennacle-security.github.io/summit/)
 
@@ -57,7 +57,7 @@ Capabilities that usually sit behind paid tooling, plus the scanning core:
 | SARIF + JUnit XML output | built in | paid reporting |
 | Pre-built binaries (linux/amd64, arm64, windows) | every release | N/A |
 
-Every finding carries a confidence label: `confirmed` (an observed fact) or `potential` (a heuristic). That distinction runs through the entire tool.
+Every finding carries a confidence label - `confirmed` (an observed fact), `likely` (strong evidence), `needs-manual` (a heuristic for a human to check) or `info` - and the label caps severity, so a guess can never pose as critical. That distinction runs through the entire tool.
 
 ## Quick start
 
@@ -116,8 +116,8 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 <summary>Latest measured run (<code>python examples/evidence.py</code>)</summary>
 
 ```text
-[PASS] full scan: 16 seeded check families detected, zero false positives
-       53 findings in 22.9s (344 requests), missing=none, control link flagged=no, 19 finding(s) carry confidence=confirmed
+[PASS] full scan: 20 seeded check families detected, zero false positives
+       141 findings in 8.0s (937 requests), missing=none, control link flagged=no, 48 finding(s) carry confidence=confirmed
 [PASS] resource takeover fingerprint detected on the target's own 404
        Possible AWS S3 resource takeover | AWS S3: 'nosuchbucket'
 [PASS] host header injection: marker domain echoed back by the app
@@ -130,8 +130,8 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
        /login -> reCAPTCHA via marker 'recaptcha/api.js'
 [PASS] rate limiting: --rate 5 paces 12 requests to ~2.2s; unlimited runs free
        12 requests at rate 5 -> 2.20s (theoretical floor: 2.2s); 12 requests unlimited -> 0.02s
-[PASS] concurrency on a latency-bearing target: 8 workers vs serial
-       40 requests x 25ms latency: serial 1.33s -> parallel 0.18s (7.3x speedup)
+[PASS] concurrency on a latency-bearing target: 8 workers vs serial (best of 3)
+       40 requests x 25ms latency: serial 1.20s -> parallel 0.18s (6.6x speedup)
 [PASS] smart prioritizer ranks known-injectable parameters first
        probing starts with: [('query', 'search?query=laptop'), ('id', 'user?id=1'), ('url', 'example.com')]
 [PASS] toolkit decodes JWT header/payload and states the signature is unverified
@@ -143,7 +143,7 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 [PASS] hidden parameter mining finds the undocumented debug parameter, zero noise
        1 finding(s): ['debug'] (all confirmed reflections)
 [PASS] openapi-driven scan: spec alone leads the engine to seeded SQLi and XSS
-       2 spec target(s) scanned -> 10 findings, sqli-error=yes, xss-reflection=yes
+       2 spec target(s) scanned -> 17 findings, sqli-error=yes, xss-reflection=yes
 [PASS] OS command injection: marker executed and echoed by the server
        semicolon: exec marker x2, control marker x1 | CWE-78
 [PASS] server-side template injection: {{7*7}} came back as 49
@@ -154,8 +154,24 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
        content signature: 'APP_KEY=' | CWE-538
 [PASS] CVE detection: Apache/2.4.49 banner maps to known CVEs
        detect_cves('Apache/2.4.49') -> ['CVE-2021-41773', 'CVE-2021-42013']
+[PASS] time-based SQL injection: reproducible delay detected and calibrated
+       MySQL: baseline 0.00s, probes 0.25s, 0.25s (threshold 0.2s)
+[PASS] GraphQL introspection detected on a production-looking endpoint
+       POST /graphql -> HTTP 200 with __schema payload | CWE-200
+[PASS] frontend CVE detection: jQuery 3.4.1 + WordPress 5.7.1 map to known CVEs
+       ['CVE-2020-11023', 'CVE-2021-29447'] (body signatures: CVE-2020-11023, CVE-2021-29447 (3.4.1, 5.7.1))
+[PASS] SSRF confirmed out-of-band: the server fetched our callback URL
+       OOB hit received for token ssrf8ebf79512248241f after payload http://127.0.0.1:36761/ssrf8ebf79512248241f; callback log: 09:53:39  GET    /ssrf8ebf79512248241f  from 127.0.0.1  token=ssrf8ebf79512248241f; redirector control: silent
+[PASS] XXE: external entity resolved, local file content returned
+       file content signature in response: 'root:x:0:0:' | CWE-611
+[PASS] TRACE enabled: probe marker header echoed back
+       TRACE http://127.0.0.1:8777 echoed X-Summit-Trace: summit-trace-probe-9f3c2a | CWE-693
+[PASS] hardcoded AWS key in the client bundle: reported likely, value redacted
+       AWS access key: AKIA4Q…XK3P | CWE-798
+[PASS] DOM XSS candidate: location.hash flows into innerHTML (needs manual)
+       source→sink: location.hash → innerHTML | CWE-79
 
-evidence summary: 19/19 claims verified
+evidence summary: 27/27 claims verified
 ```
 
 </details>
@@ -180,30 +196,35 @@ The demo seeds a *healthy* outbound link (`https://example.com`) as a negative c
 
 | Command | What it does |
 |---|---|
-| `summit scan <url>` | crawl, then passive + active checks, link health, WAF analysis. `--openapi` scans a spec instead of crawling. `--json` / `--html` reports. |
+| `summit scan <url>` | crawl, then passive + active checks, link health, WAF analysis. `--openapi` scans a spec instead of crawling. `--auto-html` writes an HTML report automatically; `--render` adds headless-Chromium JS rendering (`pip install playwright`). |
 | `summit authorize <url...>` | BOLA/IDOR testing: compare responses between two roles. |
-| `summit mine <url>` | hidden parameter discovery (~70 candidates, marker-based). |
+| `summit mine <url>` | hidden parameter discovery (~120 candidates, marker-based). |
 | `summit fuzz <url>` | directory brute force with wildcard-baseline filtering. |
 | `summit recon <domain>` | chain subfinder -> httpx -> nmap into one report. |
 | `summit tls <host>` | certificate expiry / self-signed / legacy TLS version audit. |
 | `summit proxy` | intercepting HTTP proxy with a SQLite site map. |
 | `summit repeater <file>` | send a raw request file (Burp-style). |
 | `summit encode` / `summit decode` | base64, URL, hex, JWT (decode-only, honestly unverified). |
+| `summit race <url>` | fire a burst of concurrent requests to surface race windows. |
+| `summit diff <before.json> <after.json>` | compare two scan reports: new, resolved, regressed (`--fail-on` for CI). |
+| `summit oob` | out-of-band callback listener: proves blind SSRF / XXE with a real hit. |
+| `summit templates` | list or validate the bundled YAML check templates. |
+| `summit setup` | interactive setup wizard; saves defaults to `~/.summit/config.json`. |
 | `summit --check-update` / `--auto-update` / `--install-tools` | versioning and recon tool installer. |
 
 Shared flags on scanning commands: `--workers`, `--rate` (requests/second ceiling), `--retries` (with `Retry-After` support), `--timeout`, `--delay`.
 
 ## Feature notes
 
-**Authorization testing.** Requests each URL as a privileged and a low-privilege role, then compares. Verdicts: `enforced` (roles differ), `broken` (identical response for the low-privilege role - critical, `confirmed`), `partial` (same status, different body - `potential`). Measured on the demo: the admin panel serves salaries to both roles, caught as `confirmed`.
+**Authorization testing.** Requests each URL as a privileged and a low-privilege role, then compares. Verdicts: `enforced` (roles differ), `broken` (identical response for the low-privilege role - critical, `confirmed`), `partial` (same status, different body - `needs-manual`). Measured on the demo: the admin panel serves salaries to both roles, caught as `confirmed`.
 
-**Hidden parameter mining.** Servers read parameters the HTML never mentions - debug switches, feature flags, internal overrides. ~70 candidate names are probed with unique markers; reflection findings are `confirmed`, status/size shifts are `potential`. Measured: the demo's undocumented `debug` switch found as `confirmed`, the other candidates silent - zero noise.
+**Hidden parameter mining.** Servers read parameters the HTML never mentions - debug switches, feature flags, internal overrides. ~120 candidate names are probed with unique markers; reflection findings are `confirmed`, status/size shifts are `needs-manual`. Measured: the demo's undocumented `debug` switch found as `confirmed`, the other candidates silent - zero noise.
 
 **OpenAPI-driven scanning.** Every documented endpoint becomes a target, with path params filled from examples and defaults - no crawling, no guessing. Measured: the spec alone leads the engine to the seeded SQLi and XSS. JSON specs natively; YAML needs converting first (the dependency list stays at exactly one).
 
 **WAF detection and bypass.** Tight vendor signatures for Cloudflare, AWS WAF, Akamai, Imperva, ModSecurity, Sucuri, F5 and Wordfence. When a filter blocks standard payloads, tamper variants (single/double URL-encoding, comment splitting, case alternation) are tried - and a bypass is reported only when the original payload lands **decoded** in the response. Measured: raw payload -> HTTP 403; encoded once -> HTTP 200, decoded.
 
-**OS command injection, SSTI, CRLF, sensitive files.** New in v0.6, each with a hard confirmation rule: OS command injection uses an exec marker plus a control probe (a server that merely reflects input shows both markers; a server that executes shows the exec marker more often - measured `x2 vs x1`), SSTI requires `{{7*7}}` to come back as `49`, CRLF requires our injected header to materialize, and sensitive files (`.env`, `.git/config`, backups) require a content signature - never just a 200. Every finding is tagged with its CWE automatically (CWE-78, CWE-1336, CWE-113, CWE-538), and version banners are matched against an offline CVE database (spoofable banners stay `potential`).
+**OS command injection, SSTI, CRLF, sensitive files.** New in v0.6, each with a hard confirmation rule: OS command injection uses an exec marker plus a control probe (a server that merely reflects input shows both markers; a server that executes shows the exec marker more often - measured `x2 vs x1`), SSTI requires `{{7*7}}` to come back as `49`, CRLF requires our injected header to materialize, and sensitive files (`.env`, `.git/config`, backups) require a content signature - never just a 200. Every finding is tagged with its CWE automatically (CWE-78, CWE-1336, CWE-113, CWE-538), and version banners are matched against an offline CVE database (spoofable banners stay `needs-manual`).
 
 **CAPTCHA: detect, do not solve.** reCAPTCHA, hCaptcha, Cloudflare Turnstile and challenge pages are detected and reported. Solving them automatically is out of scope by design - that line does not move.
 
@@ -233,7 +254,7 @@ False positives waste your triage time. False negatives get clients breached. Su
 | **Tracker/opaque param filter** - `utm_*`, `fbclid`, 40+ char tokens never probed | wasted requests and padded reports |
 | **Negative control in CI** - a healthy link that must stay unreported, asserted every push | silent regressions into false-positive territory |
 | **Scope lock** - the spider never leaves the target host | crawling half the internet, and legal exposure |
-| **Confidence labels** - fact vs heuristic, on every finding | one flat "everything is critical" triage queue |
+| **Confidence labels + severity caps** - fact, strong likelihood or needs-manual, and the label caps severity | one flat "everything is critical" triage queue |
 | **Unbreakable probe hosts** - `.example` cannot resolve | third-party callbacks and accidental DoS |
 
 ## Check catalog
@@ -241,41 +262,49 @@ False positives waste your triage time. False negatives get clients breached. Su
 | Check | Type | Severity | Confirmation basis |
 |---|---|---|---|
 | Missing security headers | passive | low | header absence |
-| Cookie flags (Secure / HttpOnly / SameSite) | passive | low-medium | header parse |
-| SQL error / stack-trace disclosure | passive | medium | baseline-diffed signatures |
+| Cookie flags (Secure / HttpOnly / SameSite) | passive | low | header parse |
+| SQL error / stack-trace disclosure | passive | low | baseline-diffed signatures |
 | Server and tech version disclosure | passive | info | header parse |
 | CORS wildcard with credentials | passive | low | header parse |
 | Email exposure | passive | info | regex |
 | WAF fingerprint | passive | info | tight vendor signatures |
 | CAPTCHA / anti-bot challenge | passive | info | challenge markers, reported not solved |
 | Resource takeover signature | passive | high | provider unclaimed-resource page on 404 -> `confirmed` |
+| CNAME-level subdomain takeover | dns | critical | dangling CNAME resolves to an unclaimed service -> `confirmed`, CWE-350 |
 | SQL injection, error-based | active | critical | fresh DB error vs baseline -> `confirmed` |
-| SQL injection, boolean-based | active | critical | response divergence -> `potential` |
-| SQL injection, time-based blind | active | critical | calibrated delay reproduced on every probe -> `potential` |
+| SQL injection, boolean-based | active | medium | response divergence -> `likely` |
+| SQL injection, time-based blind | active | medium | calibrated delay reproduced on every probe -> `likely` |
 | GraphQL introspection enabled | passive-origin | low | real `__schema` payload -> `confirmed` |
 | Reflected XSS | active | high | canary + raw payload reflection -> `confirmed` |
+| DOM XSS candidate (source->sink in inline JS) | active | low | `location.hash` flows into `innerHTML` -> `needs-manual`, CWE-79 |
 | WAF filter bypass | active | high | tampered payload lands decoded -> `confirmed` |
 | Host header injection | active | high | marker domain echoed vs baseline -> `confirmed` |
+| HTTP parameter pollution | active | medium | both injected markers land, in order -> `confirmed`, CWE-235 |
 | CORS origin reflection | active | high | arbitrary origin reflected + credentials -> `confirmed` |
 | OS command injection | active | critical | exec marker outruns control marker -> `confirmed`, CWE-78 |
 | Server-side template injection (RCE) | active | critical | `{{7*7}}` evaluates to 49 -> `confirmed`, CWE-1336 |
 | CRLF injection / response splitting | active | high | injected header materializes -> `confirmed`, CWE-113 |
+| TRACE method enabled (XST surface) | active | high | marker header echoed back by TRACE -> `confirmed`, CWE-693 |
+| Risky HTTP methods advertised | active | medium | Allow header lists TRACE/PUT/DELETE -> `likely`, CWE-650 |
 | Sensitive file exposure (.env, .git) | passive-origin | high | content signature, not just a 200 -> `confirmed`, CWE-538 |
-| Known CVE in version banner | passive | high | offline CVE database match -> `potential` (banners spoof) |
+| XXE (file disclosure via external entity) | active | high | local file content returned via entity -> `confirmed`, CWE-611 |
+| SSRF (out-of-band confirmed) | active | high | listener received the callback -> `confirmed`, CWE-918 |
+| Hardcoded secret in client-side code | passive | medium | vendor pattern + entropy, redacted -> `likely` (private keys `confirmed`), CWE-798 |
+| Known CVE in version banner | passive | low | offline CVE database match -> `needs-manual` (banners spoof) |
 | Open redirect | active | medium | 3xx Location to probe host -> `confirmed` |
 | Path traversal | active | high | OS file indicators -> `confirmed` |
 | Broken access control (BOLA/IDOR) | authorize | critical | identical response for low-privilege role -> `confirmed` |
-| Email/user enumeration | active | medium | differential response for unknown identities -> `potential` |
+| Email/user enumeration | active | medium | differential response for unknown identities -> `likely` |
 | Directory listing | passive-origin | medium | "Index of /" content signature -> `confirmed` |
-| Cacheable sensitive response | passive | medium | sensitive marker + no Cache-Control -> `potential` |
+| Cacheable sensitive response | passive | low | sensitive marker + no Cache-Control -> `needs-manual` |
 | Security headers grade | passive | info | deterministic A..F roll-up |
-| Form missing CSRF token | passive-origin | medium | POST/password form without CSRF field -> `potential` |
+| Form missing CSRF token | passive-origin | medium | POST/password form without CSRF field -> `likely` |
 | Hidden parameter (reflected) | mine | medium | unique marker reflected -> `confirmed` |
-| Hidden parameter (behavior) | mine | low | status/size shift -> `potential` |
+| Hidden parameter (behavior) | mine | low | status/size shift -> `needs-manual` |
 | Link to dead domain (hijack) | linkcheck | high | DNS failure, verified twice -> `confirmed` |
 | Link to parked domain (hijack) | linkcheck | high | tight parking fingerprints -> `confirmed` |
 | Broken outbound link | linkcheck | medium | HTTP 404/410 -> `confirmed` |
-| Unreachable outbound link | linkcheck | low | fails after retry -> `potential` |
+| Unreachable outbound link | linkcheck | low | fails after retry -> `likely` |
 | Outbound link to private IP | linkcheck | info | DNS resolution -> `confirmed`, never fetched |
 | TLS certificate expired / self-signed | tls | high-medium | certificate dates and issuer -> `confirmed` |
 | Legacy TLS versions accepted | tls | medium | handshake completed with TLSv1.0/1.1 -> `confirmed` |
@@ -297,7 +326,7 @@ False positives waste your triage time. False negatives get clients breached. Su
 | Rate limiting | built in, thread-safe | add-on | paid |
 | JWT/encoder toolkit | built in | add-on | built in |
 | Takeover fingerprints, host header, CORS | built in | add-ons | add-ons |
-| Codebase you can audit in an afternoon | ~4.2k lines | large | closed source |
+| Codebase you can audit in an afternoon | ~7.5k lines | large | closed source |
 | TLS-intercepting proxy | on the roadmap | yes | yes |
 | Race condition detection | `summit race` | add-on | paid (Turbo Intruder) |
 | TLS certificate audit | `summit tls` | add-on | built in |
@@ -308,15 +337,16 @@ We are not trying to replace either of them. Summit is the small tool you drop i
 
 ## Roadmap
 
-- [x] ~~TLS interception in the proxy (generated CA)~~
+- [ ] TLS interception in the proxy (generated CA)
 - [x] ~~POST form and JSON body injection points~~
 - [x] ~~Authenticated scanning (cookies, headers)~~
-- [ ] CNAME-level subdomain takeover (DNS resolution + service verification)
+- [x] ~~CNAME-level subdomain takeover (DNS resolution + service verification)~~
 - [x] ~~Plugin API for custom checks~~
 - [x] ~~Request interception UI~~
-- [ ] Collaboration server (out-of-band detection via DNS/HTTP callbacks)
-- [ ] Headless browser integration (JS rendering + DOM-based XSS)
-- [ ] Scan scheduling and diffing (compare scans over time)
+- [x] ~~Collaboration server (out-of-band detection via HTTP callbacks)~~
+- [x] ~~Headless browser integration (JS rendering + DOM-based XSS)~~
+- [x] ~~Scan diffing (compare scans over time)~~
+- [ ] Scan scheduling
 
 ## Community and contributors
 

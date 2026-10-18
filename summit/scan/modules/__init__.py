@@ -3,7 +3,7 @@ from .crlf import CrlfInjectionCheck
 from .enumeration import EnumerationCheck
 from .format_string import FormatStringCheck
 from .host_header import HostHeaderInjectionCheck
-from .hpp import HppCheck as HppCheck  # noqa: F811 - used in ALL_CHECKS
+from .hpp import HppCheck
 from .jwt_security import JwtSecurityCheck
 from .ldap import LdapInjectionCheck
 from .nosql import NosqlInjectionCheck
@@ -36,4 +36,5 @@ ALL_CHECKS = [
     JwtSecurityCheck(),
     OpenRedirectCheck(),
     PathTraversalCheck(),
+    HppCheck(),
 ]

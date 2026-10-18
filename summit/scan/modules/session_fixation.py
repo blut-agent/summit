@@ -59,12 +59,12 @@ class SessionFixationCheck(Check):
                     severity=self.severity,
                     url=point.request.url,
                     param=point.param,
-                    confidence="potential",
+                    confidence="needs-manual",
                     detail=(
                         "The session cookie value did not change between two consecutive requests. "
                         "If the server also does not regenerate the session ID after login, an "
                         "attacker who fixes the session ID before login can hijack the authenticated "
-                        "session. This is `potential` because session regeneration may happen on a "
+                        "session. This is `needs-manual` because session regeneration may happen on a "
                         "different endpoint (e.g., the actual login POST)."
                     ),
                     evidence=f"same session cookie value across 2 requests: {list(first_values)[0][:20]}...",

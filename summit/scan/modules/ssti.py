@@ -11,12 +11,22 @@ from __future__ import annotations
 
 from ...http.client import HttpClient
 from ...scan.core import Check, Finding, InjectionPoint
+from ..runtime import deep
 
 PROBES = [
     ("Jinja2/Twig", "{{7*7}}", "49"),
     ("Freemarker/Velocity", "${7*7}", "49"),
     ("ERB", "<%= 7*7 %>", "49"),
     ("Smarty", "{7*7}", "49"),
+]
+
+# Deep mode: engine-specific expressions that distinguish the backend
+# instead of stopping at the first generic match.
+DEEP_PROBES = [
+    ("Jinja2 concat", "{{7*'7'}}", "7777777"),
+    ("Spring EL", "*{7*7}", "49"),
+    ("Thymeleaf", "[[${7*7}]]", "49"),
+    ("Pebble", "{{ 7 * 7 }}", "49"),
 ]
 
 
@@ -29,8 +39,9 @@ class SstiCheck(Check):
         baseline = client.send(point.request)
         if "49" in baseline.text:
             return []  # the number is already on the page - cannot attribute evaluation to us
-        for engine, payload, computed in PROBES:
-            request = point.request.with_query_param(point.param, payload)
+        probes = (PROBES + DEEP_PROBES) if deep() else PROBES
+        for engine, payload, computed in probes:
+            request = point.with_value(payload)
             response = client.send(request)
             # The raw template must be GONE from the response (replaced by the
             # computed value). A page that echoes `{{7*7}}` literally AND

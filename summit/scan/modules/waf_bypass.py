@@ -34,14 +34,14 @@ class WafBypassCheck(Check):
     severity = "high"
 
     def run(self, point: InjectionPoint, client: HttpClient) -> list[Finding]:
-        canary_response = client.send(point.request.with_query_param(point.param, CANARY))
+        canary_response = client.send(point.with_value(CANARY))
         waf = detect_waf(canary_response)
         blocked = canary_response.status in BLOCK_STATUSES or waf is not None
         if not blocked and CANARY in canary_response.text:
             return []  # nothing filtered here; the plain XSS check covers this path
 
         for label, variant in tamper_variants(PAYLOAD):
-            response = client.send(point.request.with_query_param(point.param, variant))
+            response = client.send(point.with_value(variant))
             if response.status == 200 and PAYLOAD in response.text:
                 return [
                     Finding(

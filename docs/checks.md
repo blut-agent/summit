@@ -5,44 +5,51 @@ description: Every check in summit, with severity, confirmation basis, CWE and i
 
 # Check Catalog
 
-Every check states its **confirmation basis**. `confirmed` = an observed fact. `potential` = a heuristic that needs a human eye. That column is not decoration - it is the contract.
+Every check states its **confirmation basis**. `confirmed` = an observed fact, `likely` = strong evidence, `needs-manual` = a heuristic that needs a human eye, `info` = context only. The label caps severity (`likely` stops at medium, `needs-manual` at low). That column is not decoration - it is the contract.
 
 ## Passive checks (no attack traffic)
 
 | Check | Severity | CWE | Confirmation basis |
 |---|---|---|---|
 | Missing security headers | low | CWE-693 | header absence |
-| Cookie flags (Secure / HttpOnly / SameSite) | low-medium | CWE-614 | header parse |
-| SQL error / stack-trace disclosure | medium | CWE-209 | baseline-diffed signatures |
+| Cookie flags (Secure / HttpOnly / SameSite) | low | CWE-614 | header parse |
+| SQL error / stack-trace disclosure | low | CWE-209 | baseline-diffed signatures |
 | Server and tech version disclosure | info | CWE-200 | header parse |
 | CORS wildcard with credentials | low | CWE-942 | header parse |
 | Email exposure | info | CWE-359 | regex |
 | WAF fingerprint | info | CWE-693 | tight vendor signatures |
 | CAPTCHA / anti-bot challenge | info | CWE-807 | challenge markers, reported not solved |
 | Resource takeover signature | high | CWE-350 | provider unclaimed-resource page on 404 -> `confirmed` |
+| Hardcoded secret in client-side code | medium | CWE-798 | vendor pattern + entropy, value redacted -> `likely` (private keys `confirmed`) |
 | Security headers grade | info | CWE-693 | deterministic A..F roll-up |
-| Cacheable sensitive response | medium | CWE-524 | sensitive marker + no Cache-Control -> `potential` |
-| Known CVE in version banner | high | CWE-1104 | offline CVE database range match -> `potential` |
-| Known CVE in frontend library | medium | CWE-1104 | body signature (jQuery, lodash, WordPress) -> `potential` |
+| Cacheable sensitive response | low | CWE-524 | sensitive marker + no Cache-Control -> `needs-manual` |
+| Known CVE in version banner | low | CWE-1104 | offline CVE database range match -> `needs-manual` |
+| Known CVE in frontend library | low | CWE-1104 | body signature (jQuery, lodash, WordPress) -> `needs-manual` |
 
 ## Active checks
 
 | Check | Severity | CWE | Confirmation basis |
 |---|---|---|---|
 | SQL injection, error-based | critical | CWE-89 | fresh DB error vs baseline -> `confirmed` |
-| SQL injection, boolean-based | critical | CWE-89 | response divergence + baseline match -> `potential` |
-| SQL injection, time-based blind | critical | CWE-89 | calibrated delay reproduced on all probes -> `potential` |
+| SQL injection, boolean-based | medium | CWE-89 | response divergence + baseline match -> `likely` |
+| SQL injection, time-based blind | medium | CWE-89 | calibrated delay reproduced on all probes -> `likely` |
 | Reflected XSS | high | CWE-79 | canary + raw payload reflection -> `confirmed` |
+| DOM XSS candidate (source->sink) | low | CWE-79 | `location.hash` flows into `innerHTML` -> `needs-manual` |
 | WAF filter bypass | high | CWE-693 | tampered payload lands decoded -> `confirmed` |
 | OS command injection | critical | CWE-78 | exec marker outruns control marker -> `confirmed` |
 | Server-side template injection | critical | CWE-1336 | `{{7*7}}` evaluates to 49 -> `confirmed` |
 | CRLF injection / response splitting | high | CWE-113 | injected header materializes -> `confirmed` |
+| TRACE method enabled (XST surface) | high | CWE-693 | marker header echoed back by TRACE -> `confirmed` |
+| Risky HTTP methods advertised | medium | CWE-650 | Allow header lists TRACE/PUT/DELETE -> `likely` |
+| XML external entity injection | high | CWE-611 | local file content returned via entity -> `confirmed` |
+| SSRF (out-of-band confirmed) | high | CWE-918 | OOB listener received the callback -> `confirmed` |
 | Host header injection | high | CWE-640 | marker domain echoed vs baseline -> `confirmed` |
+| HTTP parameter pollution | medium | CWE-235 | both injected values land, in order -> `confirmed`; last-value echo -> `needs-manual` |
 | CORS origin reflection | high | CWE-942 | arbitrary origin reflected + credentials -> `confirmed` |
-| LDAP injection | high | CWE-90 | differential response to LDAP metacharacters -> `potential` |
-| NoSQL injection | critical | CWE-943 | MongoDB operators change response -> `potential` |
+| LDAP injection | medium | CWE-90 | differential response to LDAP metacharacters -> `likely` |
+| NoSQL injection | medium | CWE-943 | MongoDB operators change response -> `likely` |
 | Format string injection | high | CWE-134 | new hex values after `%x` -> `confirmed` |
-| Email/user enumeration | medium | CWE-204 | differential response for unknown identities -> `potential` |
+| Email/user enumeration | medium | CWE-204 | differential response for unknown identities -> `likely` |
 | Open redirect | medium | CWE-601 | 3xx Location to probe host -> `confirmed` |
 | Path traversal | high | CWE-22 | OS file indicators -> `confirmed` |
 
@@ -51,12 +58,12 @@ Every check states its **confirmation basis**. `confirmed` = an observed fact. `
 | Check | Severity | CWE | Confirmation basis |
 |---|---|---|---|
 | Broken access control (BOLA/IDOR) | critical | CWE-639 | identical response for low-privilege role -> `confirmed` |
-| Authorization response differs | medium | CWE-639 | same status, different body -> `potential` |
-| Session fixation | medium | CWE-384 | session cookie not regenerated -> `potential` |
+| Authorization response differs | low | CWE-639 | same status, different body -> `needs-manual` |
+| Session fixation | low | CWE-384 | session cookie not regenerated -> `needs-manual` |
 | JWT uses alg:none | critical | CWE-347 | JWT header analysis -> `confirmed` |
 | JWT alg:none attack accepted | critical | CWE-347 | forged token accepted by server -> `confirmed` |
-| JWT uses HMAC | medium | CWE-326 | JWT header analysis -> `potential` |
-| Form missing CSRF token | medium | CWE-352 | POST/password form without CSRF field -> `potential` |
+| JWT uses HMAC | low | CWE-326 | JWT header analysis -> `needs-manual` |
+| Form missing CSRF token | medium | CWE-352 | POST/password form without CSRF field -> `likely` |
 
 ## Link health checks
 
@@ -65,7 +72,7 @@ Every check states its **confirmation basis**. `confirmed` = an observed fact. `
 | Link to dead domain (hijack) | high | CWE-350 | DNS failure, verified twice -> `confirmed` |
 | Link to parked domain (hijack) | high | CWE-350 | tight parking fingerprints -> `confirmed` |
 | Broken outbound link | medium | CWE-350 | HTTP 404/410 -> `confirmed` |
-| Unreachable outbound link | low | CWE-350 | fails after retry -> `potential` |
+| Unreachable outbound link | low | CWE-350 | fails after retry -> `likely` |
 | Outbound link to private IP | info | CWE-918 | DNS resolution -> `confirmed`, never fetched |
 
 ## Fuzz and origin checks

@@ -12,7 +12,7 @@ Mining strategy, kept deliberately simple and honest:
    unique marker value
 3. a candidate is reported only when something objectively changed:
    the marker is reflected back (confirmed), or the status/size changed
-   meaningfully (potential)
+   meaningfully (needs-manual)
 
 No timing attacks, no cache deception, no external callbacks - those
 are separate tools with separate risks.
@@ -76,7 +76,7 @@ def _probe(client: HttpClient, url: str, name: str, base_status: int, base_len: 
             severity="low",
             url=url,
             param=name,
-            confidence="potential",
+            confidence="needs-manual",
             detail=f"Adding parameter '{name}' changed the response (status or size) even though the application never advertises it.",
             evidence=f"baseline HTTP {base_status}/{base_len}B -> HTTP {response.status}/{len(response.body)}B",
             remediation="Investigate what the parameter controls; undocumented state changes are attack surface.",

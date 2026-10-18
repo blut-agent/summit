@@ -12,18 +12,25 @@ from urllib.parse import urlsplit
 from ...http.client import HttpClient
 from ...http.models import HttpRequest
 from ...scan.core import Finding
+from ..runtime import deep
 
 LISTING_SIGNATURES = [
     "directory listing for",
     "index of /",
 ]
 
+DIRECTORIES = ("/files/", "/uploads/", "/static/", "/backup/", "/")
+
+# Deep mode: more places directory indexes are commonly left on.
+DEEP_DIRECTORIES = ("/images/", "/img/", "/assets/", "/downloads/", "/logs/", "/data/", "/tmp/", "/media/")
+
 
 def run_directory_listing(client: HttpClient, base_url: str) -> list[Finding]:
     findings: list[Finding] = []
     split = urlsplit(base_url)
     origin = f"{split.scheme}://{split.netloc}"
-    for path in ("/files/", "/uploads/", "/static/", "/backup/", "/"):
+    paths = (DIRECTORIES + DEEP_DIRECTORIES) if deep() else DIRECTORIES
+    for path in paths:
         try:
             response = client.send(HttpRequest(method="GET", url=origin + path))
         except Exception:

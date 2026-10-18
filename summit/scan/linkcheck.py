@@ -98,7 +98,10 @@ def _probe(url: str, timeout: float):
                 break
         response.close()
         return response.status_code, head.decode("utf-8", errors="replace"), None
-    except requests.RequestException as exc:
+    except (requests.RequestException, ValueError) as exc:
+        # requests can raise a bare ValueError when a redirect target is
+        # malformed enough to break URL parsing (hostile Location header);
+        # treat that exactly like any other failed probe.
         return None, None, str(exc)
 
 
@@ -154,7 +157,7 @@ def _check_one(url: str, timeout: float) -> Finding | None:
                 title="Outbound link unreachable",
                 severity="low",
                 url=url,
-                confidence="potential",
+                confidence="likely",
                 detail=f"'{host}' could not be reached after a retry: {error}",
                 remediation="Remove or update the link if the service is gone.",
             )
@@ -180,7 +183,7 @@ def _check_one(url: str, timeout: float) -> Finding | None:
             title="Outbound link server error",
             severity="low",
             url=url,
-            confidence="potential",
+            confidence="likely",
             detail=f"'{host}' returned HTTP {status}.",
             evidence=f"HTTP {status}",
             remediation="Re-check later; the service may be temporarily down.",

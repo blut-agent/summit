@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import deque
 from html.parser import HTMLParser
 from urllib.parse import urlencode, urljoin, urlsplit
@@ -9,6 +10,7 @@ from ..http.models import HttpRequest, HttpResponse
 from .js_endpoints import extract_from_page
 
 _LINK_ATTRS = {"a": "href", "link": "href", "script": "src", "img": "src", "iframe": "src", "form": "action"}
+_LOC_RE = re.compile(r"<loc>\s*(.*?)\s*</loc>", re.IGNORECASE | re.DOTALL)
 
 
 def _normalize_host(host: str | None) -> str:
@@ -72,6 +74,46 @@ class Spider:
             return False
         return _normalize_host(urlsplit(url).hostname) in self.scope_hosts
 
+    def _discover_seeds(self, origin: str) -> list[str]:
+        """robots.txt + sitemap.xml are the site's own public index."""
+        seeds: list[str] = []
+        sitemap_urls: list[str] = []
+        try:
+            robots = self.client.send(HttpRequest(method="GET", url=origin + "/robots.txt"))
+            if robots.status == 200:
+                for line in robots.text[:50_000].splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    lowered = line.lower()
+                    if lowered.startswith(("disallow:", "allow:")):
+                        path = line.split(":", 1)[1].strip().rstrip("$")
+                        if path and "*" not in path and path != "/":
+                            seeds.append(urljoin(origin + "/", path))
+                    elif lowered.startswith("sitemap:"):
+                        sitemap_url = line.split(":", 1)[1].strip()
+                        if sitemap_url.startswith(("http://", "https://")):
+                            sitemap_urls.append(sitemap_url)
+        except Exception:
+            pass
+        sitemap_urls.append(origin + "/sitemap.xml")
+        for sitemap_url in sitemap_urls[:3]:
+            seeds.extend(self._parse_sitemap(sitemap_url))
+        return seeds[:200]
+
+    def _parse_sitemap(self, url: str) -> list[str]:
+        try:
+            response = self.client.send(HttpRequest(method="GET", url=url))
+        except Exception:
+            return []
+        head = response.text[:2000].lower()
+        if response.status != 200 or "<loc" not in head:
+            return []
+        locs = _LOC_RE.findall(response.text[:200_000])
+        # Nested sitemap indexes are skipped: one level of expansion keeps
+        # request volume bounded.
+        return [loc.strip() for loc in locs if not loc.strip().endswith(".xml")]
+
     def crawl(self, start_url: str) -> dict:
         if self.scope_hosts is None:
             start_host = _normalize_host(urlsplit(start_url).hostname)
@@ -79,6 +121,13 @@ class Spider:
 
         visited: set[str] = set()
         queue: deque[tuple[str, int]] = deque([(start_url, 0)])
+        # robots.txt and sitemap.xml are the site's own index of pages -
+        # crawling them first finds content no link points at.
+        split = urlsplit(start_url)
+        origin_base = f"{split.scheme}://{split.netloc}"
+        for seed in self._discover_seeds(origin_base):
+            if self.in_scope(seed):
+                queue.append((seed.split("#", 1)[0], 0))
         pages: list[HttpResponse] = []
         forms: list[dict] = []
         errors: list[str] = []

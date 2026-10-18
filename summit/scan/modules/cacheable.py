@@ -43,7 +43,7 @@ def check_cacheable_sensitive(response: HttpResponse) -> list[Finding]:
             title="Cacheable response contains sensitive content",
             severity="medium",
             url=response.request.url,
-            confidence="potential",
+            confidence="needs-manual",
             detail=f"The response contains a sensitive marker ({marker!r}) but sets no Cache-Control "
             "restriction. Shared caches and the browser back-button cache may retain it for the next user.",
             evidence=f"sensitive marker: {marker!r}; Cache-Control: {response.header('cache-control') or '(absent)'}",

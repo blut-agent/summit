@@ -6,7 +6,7 @@ tags like `jquery-3.4.1.min.js` and meta generators like
 see - this module matches them against known CVEs the same way the
 banner database does.
 
-Every finding stays `potential`: a version string in a filename is a
+Every finding stays `needs-manual`: a version string in a filename is a
 strong hint, not proof the vulnerable code path is reachable.
 """
 
@@ -77,7 +77,7 @@ def check_body_cves(response: HttpResponse) -> list[Finding]:
                 title=f"Known CVE in client-side library: {hit['cve']}",
                 severity="medium",
                 url=response.request.url,
-                confidence="potential",
+                confidence="needs-manual",
                 cves=[hit["cve"]],
                 detail=(
                     f"The response references {hit['source']!r}, which is affected by "

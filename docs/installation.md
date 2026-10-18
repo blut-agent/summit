@@ -8,14 +8,14 @@ cd summit
 pip install -e .
 ```
 
-Python 3.10 or newer. The only hard dependency is `requests` - every DNS, threading and parsing feature is stdlib.
+Python 3.10 or newer. Dependencies: `requests`, `pyyaml`, `packaging` - all FLOSS, all standard.
 
 ## Verify the install
 
 ```bash
 summit --version
-pytest -q                       # 45 tests
-python examples/evidence.py     # 11/11 claims should pass
+pytest -q                       # 132 tests
+python examples/evidence.py     # 27/27 claims should pass
 ```
 
 ## Optional recon tools

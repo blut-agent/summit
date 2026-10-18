@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 
 import yaml
 
+from .. import __version__
 from ..http.client import HttpClient
 from ..http.models import HttpRequest, HttpResponse
 from ..scan.core import Finding
@@ -272,7 +273,7 @@ def run_template(
 
         # Build headers (template headers + defaults)
         headers = dict(req_template.headers)
-        headers.setdefault("User-Agent", "Summit/0.9.1 (+https://github.com/pennacle-security/summit)")
+        headers.setdefault("User-Agent", f"Summit/{__version__} (+https://github.com/pennacle-security/summit)")
 
         # Build body
         body = req_template.body.encode("utf-8") if req_template.body else None

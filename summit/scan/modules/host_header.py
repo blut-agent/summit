@@ -38,7 +38,7 @@ class HostHeaderInjectionCheck(Check):
                 severity=self.severity,
                 url=point.request.url,
                 param=point.param,
-                confidence="confirmed" if in_body else "potential",
+                confidence="confirmed" if in_body else "likely",
                 detail=(
                     f"Setting the Host header to {MARKER!r} makes the application echo it"
                     + (" in the response body" if in_body else " in the Location header")

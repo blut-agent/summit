@@ -21,7 +21,7 @@ class CrlfInjectionCheck(Check):
     severity = "high"
 
     def run(self, point: InjectionPoint, client: HttpClient) -> list[Finding]:
-        request = point.request.with_query_param(point.param, PAYLOAD)
+        request = point.with_value(PAYLOAD)
         response = client.send(request)
         if response.header(INJECTED_HEADER).lower() == "injected":
             return [

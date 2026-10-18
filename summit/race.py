@@ -13,7 +13,7 @@ Detection strategy:
    meaningful way (different body, different status, different side
    effects visible in the response), the server has a concurrency bug
 
-This is always `potential` - only a human who understands the business
+This is always `needs-manual` - only a human who understands the business
 logic can confirm that the differing responses represent an exploit
 rather than expected variation.
 """
@@ -93,7 +93,7 @@ def findings_from(results: list[RaceResult]) -> list[Finding]:
                 title="Race condition (concurrent requests produce different responses)",
                 severity="high",
                 url=result.url,
-                confidence="potential",
+                confidence="needs-manual",
                 detail=(
                     f"{len(result.concurrent)} concurrent requests produced "
                     f"{result.unique_responses} unique response(s) that differ from the "

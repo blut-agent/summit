@@ -3,7 +3,7 @@
 A state-changing form (POST, or one containing a password field) that
 carries no CSRF-style hidden field lets other websites submit it as the
 victim. The check runs over the forms the spider collected and reports
-`potential`: a framework can also enforce CSRF via cookies or headers,
+`likely`: a framework can also enforce CSRF via cookies or headers,
 so the absence of a hidden field alone is not proof - but it is where
 the review starts.
 """

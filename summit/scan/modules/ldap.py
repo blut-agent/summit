@@ -25,7 +25,7 @@ LDAP_PAYLOADS = [
 
 class LdapInjectionCheck(Check):
     check_id = "ldap-injection"
-    title = "LDAP injection (potential)"
+    title = "LDAP injection"
     severity = "high"
 
     def run(self, point: InjectionPoint, client: HttpClient) -> list[Finding]:
@@ -33,7 +33,7 @@ class LdapInjectionCheck(Check):
         base_sig = (baseline.status, len(baseline.body))
 
         for payload, description in LDAP_PAYLOADS:
-            request = point.request.with_query_param(point.param, point.original_value + payload)
+            request = point.with_value(point.original_value + payload)
             response = client.send(request)
             new_sig = (response.status, len(response.body))
 
@@ -53,7 +53,7 @@ class LdapInjectionCheck(Check):
                     severity=self.severity,
                     url=point.request.url,
                     param=point.param,
-                    confidence="potential",
+                    confidence="likely",
                     detail=(
                         f"Injecting LDAP metacharacters ({payload!r}) into parameter '{point.param}' "
                         f"changed the response (HTTP {baseline.status}/{len(baseline.body)}B -> "
