@@ -32,7 +32,7 @@ def check_csrf_forms(response: HttpResponse, forms: list[dict]) -> list[Finding]
                 title="Form without CSRF protection",
                 severity="medium",
                 url=form.get("action") or response.request.url,
-                confidence="potential",
+                confidence="likely",
                 detail=(
                     f"A {method} form"
                     + (" containing a password field" if has_password else "")

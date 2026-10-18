@@ -2,7 +2,7 @@ from summit.scan.core import Finding, filter_by_min_severity, filter_by_severiti
 
 
 def make(severity: str):
-    return Finding(check_id="x", title="t", severity=severity, url="http://x/")
+    return Finding(check_id="x", title="t", severity=severity, url="http://x/", confidence="confirmed")
 
 
 def test_filter_by_severities():
