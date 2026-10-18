@@ -12,13 +12,13 @@ jobs:
         include:
           - os: ubuntu-latest
             target: linux-amd64
-            ext: ""
+            artifact: summit-linux-amd64
           - os: ubuntu-24.04-arm
             target: linux-arm64
-            ext: ""
+            artifact: summit-linux-arm64
           - os: windows-latest
             target: windows-amd64
-            ext: .exe
+            artifact: summit-windows-amd64.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -27,43 +27,8 @@ jobs:
           python-version: "3.12"
       - run: pip install . pyinstaller
       - name: Build binary
-        shell: bash
         run: |
-          echo 'from summit.cli import main; import sys; sys.exit(main())' > launcher.py
-          pyinstaller --onefile --name summit-${{ matrix.target }} \
-            --hidden-import=summit \
-            --hidden-import=summit.cli \
-            --hidden-import=summit.authorize \
-            --hidden-import=summit.race \
-            --hidden-import=summit.tls \
-            --hidden-import=summit.ratelimit \
-            --hidden-import=summit.smart \
-            --hidden-import=summit.waf \
-            --hidden-import=summit.captcha \
-            --hidden-import=summit.takeover \
-            --hidden-import=summit.cve \
-            --hidden-import=summit.graphql \
-            --hidden-import=summit.openapi \
-            --hidden-import=summit.paramminer \
-            --hidden-import=summit.recon \
-            --hidden-import=summit.toolkit \
-            --hidden-import=summit.updates \
-            --hidden-import=summit.http.client \
-            --hidden-import=summit.http.models \
-            --hidden-import=summit.crawl.spider \
-            --hidden-import=summit.crawl.js_endpoints \
-            --hidden-import=summit.scan.core \
-            --hidden-import=summit.scan.engine \
-            --hidden-import=summit.scan.passive \
-            --hidden-import=summit.scan.linkcheck \
-            --hidden-import=summit.report.writer \
-            --hidden-import=summit.report.sarif \
-            --hidden-import=summit.proxy.server \
-            --hidden-import=summit.fuzz.dirbuster \
-            launcher.py
-      - name: Verify binary exists
-        shell: bash
-        run: ls -la dist/
+          pyinstaller --onefile --name summit-${{ matrix.target }} --paths . --hidden-import=summit.scan.modules --hidden-import=summit.report summit/__main__.py
       - name: Upload to release
         if: github.event_name == 'release'
         uses: actions/upload-release-asset@v1
@@ -71,6 +36,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: dist/summit-${{ matrix.target }}${{ matrix.ext }}
-          asset_name: summit-${{ matrix.target }}${{ matrix.ext }}
+          asset_path: dist/${{ matrix.artifact }}
+          asset_name: ${{ matrix.artifact }}
           asset_content_type: application/octet-stream

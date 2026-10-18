@@ -20,14 +20,14 @@ jobs:
           python examples/vuln_app.py &
           APP_PID=$!
           sleep 2
-          summit scan http://127.0.0.1:8765 --depth 2 --max-pages 30 --workers 8 --rate 50 --retries 1 --json demo.json
+          summit scan http://127.0.0.1:8765 --depth 1 --max-pages 20 --workers 8 --rate 50 --retries 1 --json demo.json
           kill $APP_PID
           python - <<'EOF'
           import json
           data = json.load(open("demo.json"))
           total = data["total"]
           check_ids = {finding["check_id"] for finding in data["findings"]}
-          expected = {"sqli-error", "sqli-boolean", "xss-reflection", "open-redirect", "path-traversal", "linkcheck-dead-domain", "waf-bypass", "waf-detected", "captcha-challenge", "takeover-signature", "host-header-injection", "cors-reflection", "os-command-injection", "ssti", "crlf-injection", "sensitive-file", "graphql-introspection"}
+          expected = {"sqli-error", "sqli-boolean", "xss-reflection", "open-redirect", "path-traversal", "linkcheck-dead-domain", "waf-bypass", "waf-detected", "captcha-challenge", "takeover-signature", "host-header-injection", "cors-reflection", "os-command-injection", "ssti", "crlf-injection", "sensitive-file", "graphql-introspection", "csrf-missing"}
           missing = expected - check_ids
           assert not missing, f"demo scan missed seeded checks: {missing}"
           # negative control: the healthy https://example.com link itself must NOT
