@@ -1,0 +1,25 @@
+id: exposed-docker-api
+info:
+  name: Exposed Docker API
+  severity: critical
+  description: The Docker API is accessible without authentication, allowing full container control and potential host compromise.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + JSON response with Docker API version info - direct evidence of Docker API'
+  classification:
+    cwe-id: CWE-668
+  impact: Full container and host compromise - attackers can create privileged containers.
+  remediation: Restrict the Docker API to internal networks and require TLS authentication.
+  tags: [docker, exposure, critical]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/version'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - 'ApiVersion'
+          - 'MinAPIVersion'
+        condition: and
+      - type: status
+        status: 200
+    matchers-condition: and

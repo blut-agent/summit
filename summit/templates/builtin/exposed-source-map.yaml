@@ -1,0 +1,26 @@
+id: exposed-source-map
+info:
+  name: Exposed Source Map
+  severity: medium
+  description: A JavaScript source map is publicly accessible, exposing original source code, comments, and internal API paths.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + sourceMappingURL or version:3 signature in body - direct evidence of a source map'
+  classification:
+    cwe-id: CWE-540
+  impact: Original source code, API routes, business logic, and internal comments exposed.
+  remediation: Remove source maps from production or restrict access.
+  tags: [exposure, sourcemap, javascript]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/static/js/main.js.map'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '"version"'
+          - '"sources"'
+          - 'sourceMappingURL'
+        condition: or
+      - type: status
+        status: 200
+    matchers-condition: and

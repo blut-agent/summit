@@ -1,0 +1,22 @@
+id: exposed-backup-file
+info:
+  name: Exposed Backup File
+  severity: high
+  description: A database or configuration backup file is publicly accessible, potentially containing credentials and sensitive data.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + SQL dump or backup content signature present in body - not just a 200 status'
+  classification:
+    cwe-id: CWE-530
+  impact: Full database contents, user credentials, and configuration data exposed.
+  remediation: Remove backup files from the web root; store them outside the public directory.
+  tags: [exposure, backup, database]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/backup.sql'
+    matchers:
+      - type: regex
+        part: body
+        regex: '(CREATE TABLE|INSERT INTO|-- Table structure|SET SQL_MODE)'
+      - type: status
+        status: 200
+    matchers-condition: and

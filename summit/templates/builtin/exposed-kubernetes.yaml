@@ -1,0 +1,26 @@
+id: kubernetes-exposed
+info:
+  name: Exposed Kubernetes API
+  severity: critical
+  description: Kubernetes API or dashboard is publicly accessible without authentication.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + Kubernetes-specific response headers or JSON with kind/apiVersion fields'
+  classification:
+    cwe-id: CWE-306
+  impact: Full cluster compromise - attackers can deploy, modify, or delete workloads.
+  remediation: Restrict Kubernetes API and dashboard access to internal networks.
+  tags: [kubernetes, exposure, cloud]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/api/v1/namespaces'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - 'kind'
+          - 'apiVersion'
+          - 'items'
+        condition: and
+      - type: status
+        status: 200
+    matchers-condition: and

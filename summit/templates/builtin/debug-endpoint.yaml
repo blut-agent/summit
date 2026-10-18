@@ -1,0 +1,20 @@
+id: debug-endpoint-exposed
+info:
+  name: Debug Endpoint Exposed
+  severity: high
+  description: A debug or trace endpoint is publicly accessible, potentially revealing stack traces, internal state, or source code.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + debug-specific content signature present in body'
+  classification:
+    cwe-id: CWE-489
+  impact: Stack traces, internal paths, environment details, and source code exposed.
+  remediation: Disable debug endpoints in production; require authentication for debug tools.
+  tags: [debug, exposure]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/debug'
+    matchers:
+      - type: regex
+        part: body
+        regex: '(debug mode|debugger|stack trace|var dump|print_r|xdebug)'
+    matchers-condition: or

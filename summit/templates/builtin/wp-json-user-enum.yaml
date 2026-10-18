@@ -1,0 +1,25 @@
+id: wordpress-json-user-enum
+info:
+  name: WordPress REST API User Enumeration
+  severity: medium
+  description: The WordPress REST API exposes user slugs and display names, allowing attackers to enumerate valid usernames for brute-force attacks.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + JSON array containing slug/name fields - direct evidence of user data'
+  classification:
+    cwe-id: CWE-200
+  impact: Valid usernames revealed - enables targeted brute-force and credential stuffing.
+  remediation: Restrict the wp/v2/users endpoint or require authentication.
+  tags: [wordpress, cms, enumeration]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/wp-json/wp/v2/users'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - 'slug'
+          - 'name'
+        condition: and
+      - type: status
+        status: 200
+    matchers-condition: and

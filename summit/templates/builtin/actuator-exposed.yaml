@@ -1,0 +1,25 @@
+id: spring-actuator-exposed
+info:
+  name: Spring Boot Actuator Exposed
+  severity: high
+  description: Spring Boot Actuator endpoints are publicly accessible, revealing environment variables, health details, and configuration.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + JSON response containing {"status" or "propertySources" keys from actuator endpoints'
+  classification:
+    cwe-id: CWE-200
+  impact: Internal configuration, environment variables, and system details exposed.
+  remediation: Restrict actuator endpoints to internal networks or require authentication.
+  tags: [exposure, spring, actuator]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/actuator'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '_links'
+          - 'self'
+        condition: and
+      - type: status
+        status: 200
+    matchers-condition: and

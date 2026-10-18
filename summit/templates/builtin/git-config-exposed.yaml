@@ -1,0 +1,25 @@
+id: git-config-exposed
+info:
+  name: Exposed .git/config
+  severity: high
+  description: The .git/config file is accessible, revealing repository metadata and potentially remote URLs with credentials.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + [core] section signature present in body - content-based, not status-based'
+  classification:
+    cwe-id: CWE-538
+  impact: Repository structure and remote URLs (potentially with embedded credentials) exposed.
+  remediation: Block access to .git directories at the server level.
+  tags: [exposure, git, files]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/.git/config'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '[core]'
+          - 'repositoryformatversion'
+        condition: and
+      - type: status
+        status: 200
+    matchers-condition: and

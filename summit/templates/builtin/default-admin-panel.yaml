@@ -1,0 +1,26 @@
+id: default-admin-panel
+info:
+  name: Default Admin Panel Detection
+  severity: medium
+  description: A common admin panel login page was detected, which may have default credentials.
+  confidence: needs-manual
+  confidence-rule: 'HTTP 200 + admin-specific form or title detected - verify default credentials manually'
+  classification:
+    cwe-id: CWE-1188
+  impact: If default credentials work, full admin access is available.
+  remediation: Change default credentials; restrict admin panel access to internal networks.
+  tags: [admin, default-creds]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/admin'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - 'admin'
+          - 'login'
+          - 'password'
+        condition: and
+      - type: status
+        status: 200
+    matchers-condition: and

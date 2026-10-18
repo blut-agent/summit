@@ -1,0 +1,27 @@
+id: graphql-introspection-tpl
+info:
+  name: GraphQL Introspection Enabled
+  severity: low
+  description: GraphQL introspection is enabled, allowing attackers to map the entire schema.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + __schema key present in JSON response - direct evidence of introspection'
+  classification:
+    cwe-id: CWE-200
+  impact: Complete API schema visible to attackers - every type, field, and mutation mapped.
+  remediation: Disable introspection in production or restrict it to authenticated admin roles.
+  tags: [graphql, api, exposure]
+requests:
+  - method: POST
+    path: '{{BaseURL}}/graphql'
+    headers:
+      Content-Type: application/json
+    body: '{"query": "{ __schema { queryType { name } } }"}'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '__schema'
+        condition: or
+      - type: status
+        status: 200
+    matchers-condition: and
