@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from ..http.models import HttpResponse
+from .http.models import HttpResponse
 
 BLOCK_STATUSES = {403, 406, 429, 503}
 

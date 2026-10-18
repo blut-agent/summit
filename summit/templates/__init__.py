@@ -10,15 +10,15 @@ because custom templates are the #1 way false positives creep back in.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlsplit
 
 import yaml
 
 from ..http.client import HttpClient
 from ..http.models import HttpRequest, HttpResponse
-from ..scan.core import Finding, cap_severity
+from ..scan.core import Finding
 from ..waf_block import is_probe_blocked
 
 _VALID_SEVERITIES = {"info", "low", "medium", "high", "critical"}
@@ -144,6 +144,8 @@ def _parse_template(raw: dict, path: str) -> Template:
 
     description = info.get("description", "")
     references = info.get("references", [])
+    # references is parsed for future use in report generation
+    _ = references
     cwe = info.get("classification", {}).get("cwe-id", "") if isinstance(info.get("classification"), dict) else ""
     cve = info.get("classification", {}).get("cve-id", []) if isinstance(info.get("classification"), dict) else []
     if isinstance(cve, str):
@@ -270,7 +272,7 @@ def run_template(
 
         # Build headers (template headers + defaults)
         headers = dict(req_template.headers)
-        headers.setdefault("User-Agent", f"Summit/0.9.1 (+https://github.com/pennacle-security/summit)")
+        headers.setdefault("User-Agent", "Summit/0.9.1 (+https://github.com/pennacle-security/summit)")
 
         # Build body
         body = req_template.body.encode("utf-8") if req_template.body else None
@@ -285,7 +287,6 @@ def run_template(
         response = client.send(request)
 
         # WAF block guard: skip if the response is a WAF block page
-        from ..waf_block import is_probe_blocked
         if is_probe_blocked(response):
             continue
 
@@ -326,7 +327,3 @@ def run_template(
             verification_steps=template.confidence_rule,
         ))
 
-    return findings
-
-
-from dataclasses import dataclass, field

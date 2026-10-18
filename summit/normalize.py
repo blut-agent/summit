@@ -8,6 +8,7 @@ one entry.
 from __future__ import annotations
 
 import html
+import re
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 # Trailing punctuation that our own extractor sometimes leaves behind
