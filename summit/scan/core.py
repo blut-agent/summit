@@ -8,6 +8,25 @@ from ..http.models import HttpRequest
 SEVERITIES = ("info", "low", "medium", "high", "critical")
 SEVERITY_RANK = {name: index for index, name in enumerate(SEVERITIES)}
 
+CONFIDENCE_LEVELS = ("confirmed", "likely", "needs-manual", "info")
+_CONFIDENCE_RANK = {name: index for index, name in enumerate(CONFIDENCE_LEVELS)}
+
+_CONFIDENCE_SEVERITY_CAP = {
+    "confirmed": "critical",
+    "likely": "medium",
+    "needs-manual": "low",
+    "info": "info",
+}
+
+
+def cap_severity(severity: str, confidence: str) -> str:
+    """Cap severity based on confidence. Unverified findings can never be
+    CRITICAL or HIGH."""
+    cap = _CONFIDENCE_SEVERITY_CAP.get(confidence, "info")
+    if SEVERITY_RANK.get(severity, 0) > SEVERITY_RANK.get(cap, 0):
+        return cap
+    return severity
+
 
 def min_severity(severity: str) -> str:
     """Smallest severity name whose rank covers `severity` (for --min-severity)."""
@@ -158,19 +177,24 @@ class Finding:
     detail: str = ""
     evidence: str = ""
     remediation: str = ""
-    # "confirmed" = observed fact (raw reflection, file content, fresh DB
-    # error, 3xx Location). "potential" = heuristic signal.
+    # "confirmed" = observed fact. "likely" = strong signal, not proven.
+    # "needs-manual" = heuristic only. "info" = informational.
     confidence: str = "needs-manual"
     # CWE identifier, resolved from check_id when the module does not set it.
     cwe: str = ""
     # CVE identifiers detected for this finding (e.g. from version banners).
     cves: list[str] = field(default_factory=list)
-    # Security impact: what an attacker concretely achieves. Resolved from
-    # check_id when the module does not set it.
-    impact: str = `"
-    poc: str = `"
-    verification_steps: str = `"
+    # Security impact: what an attacker concretely achieves.
+    impact: str = ""
+    # A reproducible curl command or step-by-step verification procedure.
+    poc: str = ""
+    # Human-readable steps to verify this finding manually.
+    verification_steps: str = ""
+    # All affected URLs (for deduplicated findings).
     affected_urls: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        self.severity = cap_severity(self.severity, self.confidence)
 
     def as_dict(self) -> dict:
         return {
@@ -186,6 +210,9 @@ class Finding:
             "cwe": self.cwe or cwe_for(self.check_id),
             "cves": list(self.cves),
             "impact": self.impact or impact_for(self.check_id),
+            "poc": self.poc,
+            "verification_steps": self.verification_steps,
+            "affected_urls": list(self.affected_urls),
         }
 
 
