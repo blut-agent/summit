@@ -1,0 +1,25 @@
+id: exposed-aspnet-trace
+info:
+  name: ASP.NET Trace Viewer Exposed
+  severity: medium
+  description: The ASP.NET trace viewer is reachable, exposing request headers, cookies, session identifiers, and server-side exception details.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + ASP.NET trace viewer content - tracing is enabled and publicly readable'
+  classification:
+    cwe-id: CWE-200
+  impact: Disclosure of session cookies, authorization headers, and internal server paths.
+  remediation: Disable trace.axd in production and restrict it to local requests only.
+  tags: [aspnet, exposure, debug]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/trace.axd'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - 'Trace Information'
+          - 'Application Trace'
+        condition: or
+      - type: status
+        status: 200
+    matchers-condition: and

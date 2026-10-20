@@ -4,6 +4,63 @@ All notable changes to summit are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [v1.3.0] - 2026-10-20
+
+### Added
+
+- CI severity gates: `scan --fail-on SEVERITY` exits 1 when a reported
+  finding is at or above the chosen severity. Reports are written before the
+  gate is evaluated.
+- Baseline-aware gating: `scan --baseline previous.json` diffs the current
+  findings against an earlier report with the same dedup key as `summit diff`;
+  only new or regressed findings count toward `--fail-on`. An unreadable
+  baseline exits 2 instead of passing silently.
+- Template selection: `scan --template-tags`, `--template-exclude-tags` and
+  `--template-severity` choose a subset of the 25 bundled templates.
+- `summit templates --tags/--exclude-tags/--severity` filters the inventory,
+  and `summit templates --json` emits machine-readable template metadata.
+
+### Changed
+
+- The `TEMPLATES` phase reports how many templates actually ran after
+  filtering, not how many files were considered.
+
+## [v1.2.0] - 2026-10-20
+
+### Added
+
+- Nuclei-style YAML template engine: path lists, word/regex/status/DSL
+  matchers, negative matchers, `stop-at-first-match`, `follow-redirects`
+  and Nuclei placeholders. The 25 bundled templates now run with every
+  scan by default; `--no-templates` skips them and `--templates` adds custom
+  checks.
+- 18 new bundled CVE/exposure templates: Apache 2.4.50 traversal, Flink,
+  Grafana, Citrix, Pulse Secure, Fortinet SSL-VPN, F5 iControl, PHPUnit,
+  PHP-CGI, Symfony profiler, Go pprof, Swagger UI, ASP.NET trace, ELMAH,
+  Tomcat examples, phpMyAdmin setup, permissive crossdomain and WordPress
+  XML-RPC.
+- New checks: XPath injection (CWE-643), SSI injection (CWE-96), Log4Shell
+  (CWE-917), Shellshock (CWE-78) and blind XXE (CWE-611). The last three are
+  reported only after a real out-of-band callback.
+- The OOB listener accepts raw JNDI/LDAP binds on a second TCP port;
+  `--oob-listen` now sprays Log4Shell, Shellshock and blind XXE payloads.
+- Sensitive-file catalog expanded to 26 default and 26 deep paths: cloud
+  credentials, Kubernetes/Docker auth, Terraform state, private keys,
+  database dumps and application logs.
+
+### Changed
+
+- Built-in templates run automatically during `scan`; `--no-templates`
+  restores the previous behavior. Five duplicate or weak templates were
+  removed and the admin-panel check now requires a password field.
+- Header matchers use `HttpResponse.headers_text()` instead of relying on a
+  method that did not exist.
+
+### Fixed
+
+- Raw JNDI token extraction now handles prefixes containing digits
+  (`log4j...`), so Log4Shell callbacks correlate correctly.
+
 ## [v1.1.0] - 2026-10-18
 
 ### Added

@@ -29,12 +29,17 @@ def _finding_key(finding: dict) -> tuple:
 _SEVERITY_ORDER = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
 
 
-def diff_reports(old_path: str, new_path: str) -> DiffResult:
-    with open(old_path, encoding="utf-8") as fh:
-        old_findings = json.load(fh).get("findings", [])
-    with open(new_path, encoding="utf-8") as fh:
-        new_findings = json.load(fh).get("findings", [])
+def load_findings(path: str) -> list[dict]:
+    """Load the findings array from a summit JSON report."""
+    with open(path, encoding="utf-8") as fh:
+        payload = json.load(fh)
+    findings = payload.get("findings", [])
+    if not isinstance(findings, list):
+        raise ValueError("report has no findings array")
+    return findings
 
+
+def diff_finding_lists(old_findings: list[dict], new_findings: list[dict]) -> DiffResult:
     old_map = {_finding_key(f): f for f in old_findings}
     new_map = {_finding_key(f): f for f in new_findings}
 
@@ -57,6 +62,10 @@ def diff_reports(old_path: str, new_path: str) -> DiffResult:
             result.resolved.append(old_finding)
 
     return result
+
+
+def diff_reports(old_path: str, new_path: str) -> DiffResult:
+    return diff_finding_lists(load_findings(old_path), load_findings(new_path))
 
 
 def render_diff(result: DiffResult) -> str:

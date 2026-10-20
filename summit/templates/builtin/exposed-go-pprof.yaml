@@ -1,0 +1,25 @@
+id: exposed-go-pprof
+info:
+  name: Go pprof Debug Endpoints Exposed
+  severity: medium
+  description: The Go runtime profiling endpoints are publicly reachable, exposing heap contents, goroutine stacks, and CPU profiles.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + pprof profile index - the net/http/pprof handler is mounted publicly'
+  classification:
+    cwe-id: CWE-200
+  impact: Memory disclosure, including secrets, and CPU exhaustion through profile collection.
+  remediation: Bind pprof to localhost or remove the import from production builds.
+  tags: [go, exposure, debug]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/debug/pprof/'
+      - '{{BaseURL}}/debug/pprof'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - 'Types of profiles available'
+      - type: status
+        status: 200
+    matchers-condition: and

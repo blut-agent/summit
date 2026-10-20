@@ -13,8 +13,10 @@ from .path_traversal import PathTraversalCheck
 from .session_fixation import SessionFixationCheck
 from .sqli import SqliBooleanCheck, SqliErrorCheck
 from .sqli_time import SqliTimeCheck
+from .ssi import SsiInjectionCheck
 from .ssti import SstiCheck
 from .waf_bypass import WafBypassCheck
+from .xpath import XpathInjectionCheck
 from .xss import XssReflectCheck
 
 ALL_CHECKS = [
@@ -28,6 +30,7 @@ ALL_CHECKS = [
     CrlfInjectionCheck(),
     NosqlInjectionCheck(),
     LdapInjectionCheck(),
+    XpathInjectionCheck(),
     FormatStringCheck(),
     HostHeaderInjectionCheck(),
     CorsReflectionCheck(),
@@ -37,4 +40,5 @@ ALL_CHECKS = [
     OpenRedirectCheck(),
     PathTraversalCheck(),
     HppCheck(),
+    SsiInjectionCheck(),
 ]

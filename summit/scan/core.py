@@ -104,6 +104,11 @@ CWE_BY_CHECK_ID = {
     "dom-xss": "CWE-79",
     "trace-enabled": "CWE-693",
     "http-methods-advertised": "CWE-650",
+    "xpath-injection": "CWE-643",
+    "ssi-injection": "CWE-96",
+    "log4shell": "CWE-917",
+    "shellshock": "CWE-78",
+    "xxe-oob": "CWE-611",
 }
 
 # Security impact per check: what an attacker concretely achieves, not
@@ -169,6 +174,11 @@ IMPACT_BY_CHECK_ID = {
     "dom-xss": "Client-side script execution controlled through the URL - session theft and page takeover without a server reflection.",
     "trace-enabled": "TRACE reflects requests verbatim - re-exposing cookies to cross-site scripting on legacy clients.",
     "http-methods-advertised": "Write methods exposed to unauthenticated callers are a direct path to data tampering.",
+    "xpath-injection": "The XML document behind the query is readable - user records, credentials and business rules included.",
+    "ssi-injection": "Arbitrary commands run on the web server as its OS user - full host compromise.",
+    "log4shell": "JNDI lookups load attacker-controlled code - textbook remote code execution.",
+    "shellshock": "A crafted header executes shell commands on the server - full host compromise.",
+    "xxe-oob": "Blind external-entity resolution: internal files and services reachable from the server side.",
 }
 
 

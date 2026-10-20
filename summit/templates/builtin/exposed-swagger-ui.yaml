@@ -1,0 +1,26 @@
+id: exposed-swagger-ui
+info:
+  name: Swagger UI Exposed
+  severity: low
+  description: An interactive Swagger UI is publicly reachable, documenting internal APIs and often allowing direct calls with a session.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + Swagger UI interface - the API documentation page is served'
+  classification:
+    cwe-id: CWE-200
+  impact: Reveals internal endpoints and parameters that widen the attack surface.
+  remediation: Require authentication for API documentation or disable it in production.
+  tags: [swagger, exposure, api]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/swagger-ui.html'
+      - '{{BaseURL}}/swagger-ui/'
+      - '{{BaseURL}}/swagger/index.html'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - 'Swagger UI'
+      - type: status
+        status: 200
+    matchers-condition: and

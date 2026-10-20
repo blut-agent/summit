@@ -1,0 +1,25 @@
+id: phpmyadmin-setup-open
+info:
+  name: phpMyAdmin Setup Script Reachable
+  severity: medium
+  description: The phpMyAdmin setup wizard is reachable, which can expose configuration details or allow configuration changes if the config directory is writable.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + phpMyAdmin setup interface - the installer was not removed'
+  classification:
+    cwe-id: CWE-200
+  impact: Disclosure of database host details; configuration tampering when the config directory is writable.
+  remediation: Remove the setup directory from production and ensure config.inc.php is read-only.
+  tags: [phpmyadmin, exposure, misconfig]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/phpmyadmin/setup/index.php'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - 'phpmyadmin'
+          - 'setup'
+        condition: and
+      - type: status
+        status: 200
+    matchers-condition: and

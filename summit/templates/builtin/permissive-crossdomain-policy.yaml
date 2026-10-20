@@ -1,0 +1,23 @@
+id: permissive-crossdomain-policy
+info:
+  name: Permissive crossdomain.xml Policy
+  severity: low
+  description: The Adobe cross-domain policy allows every origin, letting any website read responses from this host through Flash or legacy clients.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + allow-access-from domain="*" - the policy is explicitly wildcarded'
+  classification:
+    cwe-id: CWE-942
+  impact: Cross-origin data theft from authenticated users of legacy Flash clients.
+  remediation: Restrict allow-access-from to the specific origins that require access.
+  tags: [crossdomain, misconfig]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/crossdomain.xml'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - '<allow-access-from domain="*"'
+      - type: status
+        status: 200
+    matchers-condition: and

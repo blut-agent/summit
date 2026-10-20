@@ -21,10 +21,25 @@ Crawls the target (same-host only), then runs passive checks on every page, acti
 | `--json` / `--html` | write reports |
 | `--auto-html` | write an HTML report automatically after the scan, into `summit-reports/` (`--no-auto-html` to disable) |
 | `--render` | render JavaScript pages with headless Chromium (needs `pip install playwright`) |
-| `--oob-listen PORT` | run the OOB listener and confirm blind SSRF / XXE callbacks |
-| `--templates FILE_OR_DIR` | run YAML check templates during this scan |
+| `--oob-listen PORT` | run the OOB listener (HTTP + raw JNDI TCP) and confirm blind SSRF / Log4Shell / Shellshock / blind XXE with real callbacks |
+| `--templates FILE_OR_DIR` | add YAML check templates to this scan (the 25 built-ins always run) |
+| `--no-templates` | skip the bundled YAML templates for this run |
+| `--template-tags TAGS` | run only templates carrying any of these comma-separated tags, e.g. `cve,rce` |
+| `--template-exclude-tags TAGS` | skip templates carrying any of these tags, e.g. `dos,wordpress` |
+| `--template-severity LIST` | run only templates with these severities, e.g. `critical,high` |
+| `--fail-on SEVERITY` | exit 1 when a reported finding is at or above this severity (CI gate) |
+| `--baseline FILE` | previous scan JSON; with `--fail-on`, only new or regressed findings count |
 
-Output includes an honest count: `937 request(s) in 2.9s (workers=8, rate=unlimited, retries=1)` (`rate=10.0` when you pass `--rate 10`) plus the prioritizer's note (`smart order: N high-signal injection point(s) probed first`).
+Output includes an honest count: `1061 request(s) in 3.4s (workers=8, rate=unlimited, retries=1)` (`rate=10.0` when you pass `--rate 10`) plus the prioritizer's note (`smart order: N high-signal injection point(s) probed first`).
+
+## CI gates - fail the build on real risk
+
+```bash
+summit scan https://testsite.local --json current.json --fail-on high
+summit scan https://testsite.local --json current.json --baseline previous.json --fail-on high
+```
+
+`--fail-on` exits **1** when any reported finding is at or above that severity. With `--baseline`, summit diffs the current findings against the earlier JSON using the same dedup key as `summit diff`; only **new** or **regressed** findings can fail the gate. Reports are written before the gate is evaluated, so CI keeps the artifact either way. An unreadable baseline exits **2** instead of silently passing. Exit **0** means the gate passed.
 
 ## fuzz - directory brute force
 
@@ -91,17 +106,21 @@ summit oob --port 9999                               # terminal 1: the listener
 summit scan https://target.local --oob-listen 9999   # terminal 2: scan with OOB
 ```
 
-A local HTTP listener that proves blind SSRF / XXE with a real callback hit: findings fire only when the target actually fetches our URL, so nothing is reported on speculation.
+A local listener with two channels: an HTTP listener for blind SSRF and blind XXE callbacks, and a raw TCP listener that catches JNDI/LDAP binds (Log4Shell). With `--oob-listen PORT`, a scan sprays log4shell JNDI headers, a Shellshock `User-Agent` and external entities at XML endpoints; findings fire only when the unique token actually reaches the listener. No callback, no finding.
 
 ## templates - YAML check templates
 
 ```bash
-summit templates                        # list the built-in templates
-summit templates path/to/template.yaml  # validate one file or directory
+summit templates                                # list the 25 built-in templates
+summit templates --tags cve --severity critical # filter the inventory
+summit templates --json                         # machine-readable metadata
+summit templates path/to/template.yaml          # validate one file or directory
 summit scan https://target.local --templates path/to/dir
+summit scan https://target.local --no-templates
+summit scan https://target.local --template-tags cve --template-severity critical
 ```
 
-Custom checks described in YAML; scans run them alongside the built-in checks. `summit setup --template-dir` persists a template directory as the default.
+The 25 bundled templates run on every scan by default. Nuclei-style matchers (`word`, `regex`, `status`, `dsl`), path lists, negative matchers, `stop-at-first-match`, `follow-redirects` and `{{BaseURL}}` / `{{Host}}` / `{{Path}}` placeholders are supported; HIGH/CRITICAL templates must state a `confidence-rule` or they fail validation. `--template-tags`, `--template-exclude-tags` and `--template-severity` select a subset at scan time. `--templates` adds custom checks, `--no-templates` skips the bundle, and `summit setup --template-dir` persists a template directory as the default. In `summit templates`, filters apply to list mode; validate mode always checks every file it is given.
 
 ## setup - persist your defaults
 

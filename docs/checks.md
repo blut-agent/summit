@@ -52,6 +52,11 @@ Every check states its **confirmation basis**. `confirmed` = an observed fact, `
 | Email/user enumeration | medium | CWE-204 | differential response for unknown identities -> `likely` |
 | Open redirect | medium | CWE-601 | 3xx Location to probe host -> `confirmed` |
 | Path traversal | high | CWE-22 | OS file indicators -> `confirmed` |
+| XPath injection | high | CWE-643 | fresh XML parser error vs baseline -> `confirmed` |
+| Server-side includes injection | high | CWE-96 | `exec` marker printed without the raw directive -> `confirmed` |
+| Log4Shell (JNDI injection) | critical | CWE-917 | JNDI lookup reached the raw listener -> `confirmed` |
+| Shellshock (Bash command injection) | critical | CWE-78 | crafted header triggered an HTTP callback -> `confirmed` |
+| Blind XXE | high | CWE-611 | external entity fetched by the target -> `confirmed` |
 
 ## Authorization checks
 
@@ -84,3 +89,9 @@ Every check states its **confirmation basis**. `confirmed` = an observed fact, `
 | Directory listing enabled | medium | CWE-548 | listing content signature -> `confirmed` |
 | GraphQL introspection enabled | low | CWE-200 | real `__schema` payload -> `confirmed` |
 | Subdomain takeover via CNAME | critical | CWE-350 | CNAME + unclaimed service page -> `confirmed` |
+
+## YAML templates
+
+The 25 bundled Nuclei-style templates run with every scan by default. They cover the CVE checks above plus default admin panels, Spring Boot actuator, Docker/Kubernetes APIs, source maps, WordPress user enumeration, exposed Symfony profiler, Go pprof, Swagger UI, ASP.NET trace, ELMAH, Tomcat examples, permissive crossdomain policy, WordPress XML-RPC and phpMyAdmin setup.
+
+Every template states its confidence rule; HIGH/CRITICAL templates cannot load without one. `--no-templates` skips the bundle, `--templates FILE_OR_DIR` adds custom templates, and `summit templates` lists or validates them.

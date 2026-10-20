@@ -1,0 +1,25 @@
+id: exposed-symfony-profiler
+info:
+  name: Symfony Web Profiler Exposed
+  severity: medium
+  description: The Symfony web profiler is reachable in production, exposing request data, SQL queries, configuration, and environment variables.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + Symfony Profiler interface - the debug bundle is enabled on this host'
+  classification:
+    cwe-id: CWE-200
+  impact: Disclosure of credentials, tokens, queries, and internal paths.
+  remediation: Disable the web profiler in production (APP_ENV=prod, debug=false) and block /_profiler.
+  tags: [symfony, exposure, debug]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/_profiler/'
+      - '{{BaseURL}}/_profiler'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - 'Symfony Profiler'
+      - type: status
+        status: 200
+    matchers-condition: and

@@ -89,3 +89,7 @@ class HttpResponse:
             if key.lower() == name.lower():
                 return value
         return default
+
+    def headers_text(self) -> str:
+        """All response headers as one 'Name: value' block, for matchers."""
+        return "\r\n".join(f"{key}: {value}" for key, value in self.headers.items())

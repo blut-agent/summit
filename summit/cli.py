@@ -21,7 +21,7 @@ from .authorize import findings_from, parse_role, run_authorize
 from .banner import render_banner
 from .config import Settings, default_config_path, load_settings, resolve_paths, save_settings
 from .crawl.spider import Spider
-from .diff import diff_reports
+from .diff import diff_finding_lists, diff_reports, load_findings
 from .fuzz.dirbuster import fuzz
 from .http.client import HttpClient
 from .http.models import HttpRequest
@@ -32,7 +32,7 @@ from .proxy.server import ProxyServer
 from .race import findings_from as race_findings_from, run_race_test
 from .recon import missing_tools, render_report, run_recon
 from .report.writer import write_console, write_html, write_json
-from .scan.core import SEVERITIES, filter_by_min_severity, filter_by_severities
+from .scan.core import SEVERITIES, SEVERITY_RANK, filter_by_min_severity, filter_by_severities
 from .scan.engine import ScanEngine
 from .scan.modules.ssrf import SsrfCheck
 from .toolkit import decode_text, encode_text
@@ -127,9 +127,17 @@ def build_parser() -> argparse.ArgumentParser:
                       help="deep mode: extended payload sets and larger crawl defaults (persist with `summit setup`)")
     scan.add_argument("--render", action="store_true", help="render JavaScript pages with headless Chromium (needs: pip install playwright)")
     scan.add_argument("--templates", dest="templates_path", default=None,
-                      help="run YAML check templates from a file or directory (persist with `summit setup --template-dir`)")
+                      help="add YAML check templates from a file or directory (built-ins run by default; persist with `summit setup --template-dir`)")
+    scan.add_argument("--no-templates", dest="no_templates", action="store_true",
+                      help="skip the built-in YAML templates for this run")
+    scan.add_argument("--template-tags", dest="template_tags", default=None,
+                      help="only run templates carrying any of these tags (comma separated)")
+    scan.add_argument("--template-exclude-tags", dest="template_exclude_tags", default=None,
+                      help="skip templates carrying any of these tags (comma separated)")
+    scan.add_argument("--template-severity", dest="template_severity", default=None,
+                      help="only run templates with these severities (comma separated, e.g. critical,high)")
     scan.add_argument("--oob-listen", dest="oob_listen", type=int, default=None, metavar="PORT",
-                      help="start a local out-of-band listener and confirm blind SSRF by real callback")
+                      help="start a local out-of-band listener and confirm blind SSRF / Log4Shell / Shellshock / XXE by real callback")
     scan.add_argument("--oob-url", dest="oob_url", default=None,
                       help="external OOB base URL (informational only - callbacks over it cannot be auto-verified)")
     scan.add_argument("--oob-bind", dest="oob_bind", default="127.0.0.1", help="address the OOB listener binds to (default 127.0.0.1)")
@@ -148,6 +156,10 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--severity", default=None, help="only report these severities, comma separated: high,critical")
     scan.add_argument("--min-severity", dest="min_severity", default=None,
                       choices=list(SEVERITIES), help="report findings at or above this severity")
+    scan.add_argument("--fail-on", dest="fail_on", choices=list(SEVERITIES), default=None,
+                      help="exit 1 when a reported finding is at or above this severity (CI gate)")
+    scan.add_argument("--baseline", dest="baseline_path", default=None,
+                      help="previous scan JSON; with --fail-on, only new or regressed findings count")
     scan.add_argument("--silent", action="store_true", help="suppress all progress/debug output, only show findings")
     scan.add_argument("--no-color", action="store_true", help="disable coloured output for this run")
 
@@ -180,6 +192,11 @@ def build_parser() -> argparse.ArgumentParser:
     tpl = sub.add_parser("templates", help="list or validate YAML check templates")
     tpl.add_argument("action", nargs="?", choices=["list", "validate"], default="list", help="what to do (default: list)")
     tpl.add_argument("path", nargs="?", default=None, help="template file or directory (default: the built-in templates)")
+    tpl.add_argument("--tags", default=None, help="list only templates carrying any of these tags (comma separated)")
+    tpl.add_argument("--exclude-tags", dest="exclude_tags", default=None,
+                     help="skip templates carrying any of these tags (comma separated)")
+    tpl.add_argument("--severity", default=None, help="list only these severities (comma separated)")
+    tpl.add_argument("--json", dest="as_json", action="store_true", help="print template metadata as JSON")
 
     oob_p = sub.add_parser("oob", help="run the out-of-band callback listener (blind SSRF / XXE proof)")
     oob_p.add_argument("--bind", default="127.0.0.1", help="address to bind (default 127.0.0.1)")
@@ -274,29 +291,107 @@ def _apply_severity_filters(findings, args: argparse.Namespace):
     return findings
 
 
+def _gate_hits(candidates: list[dict], fail_on: str) -> list[dict]:
+    floor = SEVERITY_RANK.get(fail_on, 0)
+    return [item for item in candidates if SEVERITY_RANK.get(item.get("severity", "info"), 0) >= floor]
+
+
+def _apply_ci_gate(findings, args: argparse.Namespace) -> int:
+    """Return 0 for pass, 1 for a failed gate, 2 for an unusable baseline."""
+    fail_on = getattr(args, "fail_on", None)
+    baseline_path = getattr(args, "baseline_path", None)
+    if not fail_on and not baseline_path:
+        return 0
+    if baseline_path and getattr(args, "json_path", None):
+        try:
+            same_file = Path(baseline_path).resolve() == Path(args.json_path).resolve()
+        except OSError:
+            same_file = False
+        if same_file:
+            print(colors.fail("--baseline and --json point at the same file; use a separate baseline path"))
+            return 2
+
+    current = [finding.as_dict() for finding in findings]
+    candidates = current
+    scope = "reported"
+    if baseline_path:
+        try:
+            baseline = load_findings(baseline_path)
+        except (OSError, ValueError) as exc:
+            print(colors.fail(f"baseline unavailable: {baseline_path}: {exc}"))
+            return 2
+        diff = diff_finding_lists(baseline, current)
+        candidates = diff.new + diff.regressed
+        scope = "new or regressed"
+        print(colors.header("Baseline comparison", 70))
+        print(f"  new: {len(diff.new)}  regressed: {len(diff.regressed)}  "
+              f"resolved: {len(diff.resolved)}  unchanged: {len(diff.unchanged)}")
+
+    if not fail_on:
+        return 0
+
+    hits = _gate_hits(candidates, fail_on)
+    if not hits:
+        print(colors.ok(f"CI gate passed: no {scope} finding at or above {fail_on}"))
+        return 0
+
+    print(colors.fail(f"CI gate failed: {len(hits)} {scope} finding(s) at or above {fail_on}"))
+    for hit in hits[:5]:
+        print(f"  [{hit.get('severity', '?').upper()}] {hit.get('title', '?')} - {hit.get('url', '?')}")
+    if len(hits) > 5:
+        print(f"  ... and {len(hits) - 5} more")
+    return 1
+
+
 # ---------------------------------------------------------------------------
 # scan
 # ---------------------------------------------------------------------------
 
 
+def _split_csv(value: str | None) -> set[str]:
+    return {token.strip().lower() for token in (value or "").split(",") if token.strip()}
+
+
+def _template_matches(template, tags: set[str], exclude_tags: set[str], severities: set[str]) -> bool:
+    template_tags = {tag.lower() for tag in template.tags}
+    if tags and not (template_tags & tags):
+        return False
+    if exclude_tags and (template_tags & exclude_tags):
+        return False
+    if severities and template.severity.lower() not in severities:
+        return False
+    return True
+
+
 def _run_templates(args: argparse.Namespace, settings: Settings, engine: ScanEngine, client: HttpClient, result: dict) -> None:
-    """Run YAML templates from --templates / setup defaults against the scan target."""
-    templates_path = args.templates_path or settings.template_dir
-    if not templates_path:
+    """Run the built-in YAML templates, plus any custom ones the user points at."""
+    if getattr(args, "no_templates", False):
         return
+    # Templates send active probes; a passive-only scan must stay traffic-free.
+    if getattr(args, "no_active", False):
+        return
+    include_tags = _split_csv(getattr(args, "template_tags", None))
+    exclude_tags = _split_csv(getattr(args, "template_exclude_tags", None))
+    severities = _split_csv(getattr(args, "template_severity", None))
     from .templates import TemplateError, load_template, run_template, validate_template
 
-    target = Path(templates_path).expanduser()
-    if target.is_dir():
-        files = sorted(target.glob("*.yaml"))
-        if not files:
-            print(colors.warn(f"no .yaml templates found in {target}"))
-            return
-    elif target.is_file():
-        files = [target]
-    else:
-        print(colors.warn(f"templates path not found: {templates_path}"))
-        return
+    builtin_dir = Path(__file__).resolve().parent / "templates" / "builtin"
+    files = sorted(builtin_dir.glob("*.yaml"))
+
+    templates_path = args.templates_path or settings.template_dir
+    if templates_path:
+        target = Path(templates_path).expanduser()
+        if target.is_dir():
+            custom_files = sorted(target.glob("*.yaml"))
+            if not custom_files:
+                print(colors.warn(f"no .yaml templates found in {target}"))
+            files.extend(custom_files)
+        elif target.is_file():
+            files.append(target)
+        else:
+            print(colors.warn(f"templates path not found: {templates_path}"))
+    # A file passed explicitly may live in the builtin directory - run it once.
+    files = list(dict.fromkeys(files))
 
     base_url = args.url or next((response.request.url for response in result.get("pages", [])), "")
     if not base_url:
@@ -304,20 +399,25 @@ def _run_templates(args: argparse.Namespace, settings: Settings, engine: ScanEng
         return
 
     ran = 0
+    executed = 0
     for file in files:
+        try:
+            template = load_template(str(file))
+        except TemplateError as exc:
+            print(colors.warn(str(exc)))
+            continue
+        if not _template_matches(template, include_tags, exclude_tags, severities):
+            continue
         errors = validate_template(str(file))
         if errors:
             for error in errors:
                 print(colors.warn(error))
             continue
-        try:
-            template = load_template(str(file))
-            for finding in run_template(template, client, base_url):
-                engine.add(finding)
-                ran += 1
-        except TemplateError as exc:
-            print(colors.warn(str(exc)))
-    _phase("TEMPLATES", f"ran {len(files)} template(s) - {ran} finding(s)")
+        for finding in run_template(template, client, base_url):
+            engine.add(finding)
+            ran += 1
+        executed += 1
+    _phase("TEMPLATES", f"ran {executed} template(s) - {ran} finding(s)")
 
 
 def _cmd_scan(args: argparse.Namespace, settings: Settings) -> int:
@@ -392,7 +492,7 @@ def _cmd_scan(args: argparse.Namespace, settings: Settings) -> int:
         except OSError as exc:
             print(colors.fail(f"could not start OOB listener on {args.oob_bind}:{args.oob_listen}: {exc}"))
             return 2
-        _phase("INIT", f"OOB listener up on {colors.url_text(base)} - blind SSRF fires only on a real callback")
+        _phase("INIT", f"OOB listener up on {colors.url_text(base)} - blind findings fire only on a real callback")
         oob_check = SsrfCheck(
             callback_base=base,
             hit_checker=lambda token: oob_server.wait_for(token, timeout=2.0) is not None,
@@ -411,6 +511,12 @@ def _cmd_scan(args: argparse.Namespace, settings: Settings) -> int:
             deep=deep,
             takeover=not args.no_takeover,
             oob_check=oob_check,
+            oob_callback_base=oob_server.base_url if oob_server else "",
+            oob_raw_base=oob_server.raw_base if oob_server else "",
+            oob_hit_checker=(
+                (lambda token: oob_server.wait_for(token, timeout=2.0) is not None)
+                if oob_server else None
+            ),
         )
         _phase("SCAN", f"running passive + active checks (workers={workers}{', deep mode' if deep else ''}) ...")
         engine.scan(result)
@@ -450,7 +556,7 @@ def _cmd_scan(args: argparse.Namespace, settings: Settings) -> int:
 
             write_junit(findings, args.junit_path)
             _log("  " + colors.ok(f"JUnit XML report written to {args.junit_path}"))
-        return 0
+        return _apply_ci_gate(findings, args)
     finally:
         if oob_server is not None:
             oob_server.stop()
@@ -721,7 +827,34 @@ def _cmd_templates(args: argparse.Namespace) -> int:
     except TemplateError as exc:
         print(colors.fail(str(exc)))
         return 1
+    if args.action == "list":
+        tags = _split_csv(getattr(args, "tags", None))
+        exclude_tags = _split_csv(getattr(args, "exclude_tags", None))
+        severities = _split_csv(getattr(args, "severity", None))
+        templates = [
+            template for template in templates
+            if _template_matches(template, tags, exclude_tags, severities)
+        ]
+    if getattr(args, "as_json", False):
+        payload = [
+            {
+                "id": template.id,
+                "name": template.name,
+                "severity": template.severity,
+                "confidence": template.confidence,
+                "tags": template.tags,
+                "cwe": template.cwe,
+                "cve": template.cve,
+                "path": template.path,
+            }
+            for template in templates
+        ]
+        print(json.dumps(payload, indent=2))
+        return 0
     print(colors.header(f"templates ({len(templates)})", 70))
+    if not templates:
+        print(colors.warn("no templates matched the filters"))
+        return 0
     for template in templates:
         print(f"  {colors.severity_badge(template.severity)} {colors.bold(template.name)}")
         print(f"    {colors.check_tag(template.id)}  ·  confidence: {colors.confidence_tag(template.confidence)}")
@@ -746,6 +879,7 @@ def _cmd_oob(args: argparse.Namespace) -> int:
     print(colors.box("summit oob", [
         f"listening on {colors.bold(base)}",
         f"point payloads at {colors.url_text(base + '/<token>')}",
+        f"JNDI/LDAP callbacks on {colors.bold(server.raw_base)} (Log4Shell)",
         colors.gray("Ctrl+C to stop" if not args.once else "will exit after the first callback"),
     ]))
     print()

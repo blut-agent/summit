@@ -1,14 +1,14 @@
 id: default-admin-panel
 info:
-  name: Default Admin Panel Detection
+  name: Admin panel login page reachable
   severity: medium
-  description: A common admin panel login page was detected, which may have default credentials.
+  description: A login form that looks like an administrative panel is reachable from the internet. Default credentials are common on such panels; summit does not guess them.
   confidence: needs-manual
-  confidence-rule: 'HTTP 200 + admin-specific form or title detected - verify default credentials manually'
+  confidence-rule: 'HTTP 200 + password field + admin marker - verify default or weak credentials manually'
   classification:
     cwe-id: CWE-1188
-  impact: If default credentials work, full admin access is available.
-  remediation: Change default credentials; restrict admin panel access to internal networks.
+  impact: If default or weak credentials work, full administrative access is available.
+  remediation: Remove the panel from public reachability, enforce MFA, and rotate any default credentials.
   tags: [admin, default-creds]
 requests:
   - method: GET
@@ -17,10 +17,15 @@ requests:
       - type: word
         part: body
         words:
+          - 'type="password"'
+      - type: word
+        part: body
+        words:
           - 'admin'
-          - 'login'
-          - 'password'
-        condition: and
+          - 'administrator'
+          - 'dashboard'
+          - 'console'
+        condition: or
       - type: status
         status: 200
     matchers-condition: and

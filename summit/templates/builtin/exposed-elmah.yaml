@@ -1,0 +1,25 @@
+id: exposed-elmah
+info:
+  name: ELMAH Error Log Exposed
+  severity: medium
+  description: The ELMAH error log handler is publicly reachable, exposing stack traces, request bodies, connection strings, and server variables.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + ELMAH error log interface - the handler is not restricted'
+  classification:
+    cwe-id: CWE-200
+  impact: Disclosure of secrets and implementation details that ease further attacks.
+  remediation: Require authentication for elmah.axd and restrict it to administrators.
+  tags: [aspnet, elmah, exposure]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/elmah.axd'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - 'ELMAH'
+          - 'Error Log for'
+        condition: or
+      - type: status
+        status: 200
+    matchers-condition: and

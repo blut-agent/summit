@@ -14,11 +14,11 @@
   <img src="https://img.shields.io/badge/dependencies-3%20FLOSS%20packages-8b949e" alt="three dependencies">
 </p>
 
-<p align="center">One scriptable CLI for web security testing: scanner, proxy, fuzzer, authorization testing, WAF analysis, link-hijack detection, race conditions and recon.<br>40+ checks across 11 families. Free where the equivalents are paid - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
+<p align="center">One scriptable CLI for web security testing: scanner, proxy, fuzzer, authorization testing, WAF analysis, link-hijack detection, race conditions and recon.<br>55+ checks across 11 families, plus 25 bundled YAML templates. Free where the equivalents are paid - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
 
 ---
 
-We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit now has 40+ checks across 11 families. Summit is that tool - v1.1.0, MIT, built in the open. Three dependencies (`requests`, `pyyaml`, `packaging`), all FLOSS, all standard.
+We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit now has 55+ checks across 11 families. Summit is that tool - v1.3.0, MIT, built in the open. Three dependencies (`requests`, `pyyaml`, `packaging`), all FLOSS, all standard.
 
 **Full documentation:** [pennacle-security.github.io/summit](https://pennacle-security.github.io/summit/)
 
@@ -117,7 +117,7 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 
 ```text
 [PASS] full scan: 20 seeded check families detected, zero false positives
-       141 findings in 8.0s (937 requests), missing=none, control link flagged=no, 48 finding(s) carry confidence=confirmed
+       141 findings in 8.3s (1031 requests), missing=none, control link flagged=no, 48 finding(s) carry confidence=confirmed
 [PASS] resource takeover fingerprint detected on the target's own 404
        Possible AWS S3 resource takeover | AWS S3: 'nosuchbucket'
 [PASS] host header injection: marker domain echoed back by the app
@@ -131,7 +131,7 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 [PASS] rate limiting: --rate 5 paces 12 requests to ~2.2s; unlimited runs free
        12 requests at rate 5 -> 2.20s (theoretical floor: 2.2s); 12 requests unlimited -> 0.02s
 [PASS] concurrency on a latency-bearing target: 8 workers vs serial (best of 3)
-       40 requests x 25ms latency: serial 1.20s -> parallel 0.18s (6.6x speedup)
+       40 requests x 25ms latency: serial 1.16s -> parallel 0.17s (6.9x speedup)
 [PASS] smart prioritizer ranks known-injectable parameters first
        probing starts with: [('query', 'search?query=laptop'), ('id', 'user?id=1'), ('url', 'example.com')]
 [PASS] toolkit decodes JWT header/payload and states the signature is unverified
@@ -161,7 +161,7 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 [PASS] frontend CVE detection: jQuery 3.4.1 + WordPress 5.7.1 map to known CVEs
        ['CVE-2020-11023', 'CVE-2021-29447'] (body signatures: CVE-2020-11023, CVE-2021-29447 (3.4.1, 5.7.1))
 [PASS] SSRF confirmed out-of-band: the server fetched our callback URL
-       OOB hit received for token ssrf8ebf79512248241f after payload http://127.0.0.1:36761/ssrf8ebf79512248241f; callback log: 09:53:39  GET    /ssrf8ebf79512248241f  from 127.0.0.1  token=ssrf8ebf79512248241f; redirector control: silent
+       OOB hit received for token ssrfa07ddbd9ad91dbb5 after payload http://127.0.0.1:36683/ssrfa07ddbd9ad91dbb5; callback log: 21:54:00  GET    /ssrfa07ddbd9ad91dbb5  from 127.0.0.1  token=ssrfa07ddbd9ad91dbb5; redirector control: silent
 [PASS] XXE: external entity resolved, local file content returned
        file content signature in response: 'root:x:0:0:' | CWE-611
 [PASS] TRACE enabled: probe marker header echoed back
@@ -196,7 +196,7 @@ The demo seeds a *healthy* outbound link (`https://example.com`) as a negative c
 
 | Command | What it does |
 |---|---|
-| `summit scan <url>` | crawl, then passive + active checks, link health, WAF analysis. `--openapi` scans a spec instead of crawling. `--auto-html` writes an HTML report automatically; `--render` adds headless-Chromium JS rendering (`pip install playwright`). |
+| `summit scan <url>` | crawl, then passive + active checks, link health, WAF analysis. The 25 bundled YAML templates run by default; `--no-templates` skips them. `--openapi` scans a spec instead of crawling. `--auto-html` writes an HTML report automatically; `--render` adds headless-Chromium JS rendering (`pip install playwright`). |
 | `summit authorize <url...>` | BOLA/IDOR testing: compare responses between two roles. |
 | `summit mine <url>` | hidden parameter discovery (~120 candidates, marker-based). |
 | `summit fuzz <url>` | directory brute force with wildcard-baseline filtering. |
@@ -207,12 +207,12 @@ The demo seeds a *healthy* outbound link (`https://example.com`) as a negative c
 | `summit encode` / `summit decode` | base64, URL, hex, JWT (decode-only, honestly unverified). |
 | `summit race <url>` | fire a burst of concurrent requests to surface race windows. |
 | `summit diff <before.json> <after.json>` | compare two scan reports: new, resolved, regressed (`--fail-on` for CI). |
-| `summit oob` | out-of-band callback listener: proves blind SSRF / XXE with a real hit. |
-| `summit templates` | list or validate the bundled YAML check templates. |
+| `summit oob` | out-of-band callback listener: HTTP callbacks plus a raw TCP JNDI channel; proves blind SSRF / Log4Shell / Shellshock / blind XXE with a real hit. |
+| `summit templates` | list or validate the 25 bundled YAML check templates. `--tags` / `--severity` narrow the list, `--json` emits machine-readable metadata. |
 | `summit setup` | interactive setup wizard; saves defaults to `~/.summit/config.json`. |
 | `summit --check-update` / `--auto-update` / `--install-tools` | versioning and recon tool installer. |
 
-Shared flags on scanning commands: `--workers`, `--rate` (requests/second ceiling), `--retries` (with `Retry-After` support), `--timeout`, `--delay`.
+Shared flags on scanning commands: `--workers`, `--rate` (requests/second ceiling), `--retries` (with `Retry-After` support), `--timeout`, `--delay`. CI gates: `--fail-on high` exits 1 when a reported finding is at or above that severity; add `--baseline previous.json` and only new or regressed findings count.
 
 ## Feature notes
 
@@ -224,7 +224,13 @@ Shared flags on scanning commands: `--workers`, `--rate` (requests/second ceilin
 
 **WAF detection and bypass.** Tight vendor signatures for Cloudflare, AWS WAF, Akamai, Imperva, ModSecurity, Sucuri, F5 and Wordfence. When a filter blocks standard payloads, tamper variants (single/double URL-encoding, comment splitting, case alternation) are tried - and a bypass is reported only when the original payload lands **decoded** in the response. Measured: raw payload -> HTTP 403; encoded once -> HTTP 200, decoded.
 
-**OS command injection, SSTI, CRLF, sensitive files.** New in v0.6, each with a hard confirmation rule: OS command injection uses an exec marker plus a control probe (a server that merely reflects input shows both markers; a server that executes shows the exec marker more often - measured `x2 vs x1`), SSTI requires `{{7*7}}` to come back as `49`, CRLF requires our injected header to materialize, and sensitive files (`.env`, `.git/config`, backups) require a content signature - never just a 200. Every finding is tagged with its CWE automatically (CWE-78, CWE-1336, CWE-113, CWE-538), and version banners are matched against an offline CVE database (spoofable banners stay `needs-manual`).
+**OS command injection, SSTI, CRLF, sensitive files, XPath, SSI.** Each ships with a hard confirmation rule: OS command injection uses an exec marker plus a control probe (a server that merely reflects input shows both markers; a server that executes shows the exec marker more often - measured `x2 vs x1`), SSTI requires `{{7*7}}` to come back as `49`, CRLF requires our injected header to materialize, sensitive files (`.env`, `.git/config`, cloud keys, Terraform state, dumps, backups) require a content signature - never just a 200, XPath requires a fresh XML parser error that the baseline did not contain, and SSI requires the `exec` marker to be printed **without** the raw directive (reflection alone never counts). Every finding is tagged with its CWE automatically (CWE-78, CWE-1336, CWE-113, CWE-538, CWE-643, CWE-96), and version banners are matched against an offline CVE database (spoofable banners stay `needs-manual`).
+
+**Log4Shell, Shellshock and blind XXE, proven out-of-band.** A response body cannot prove a blind injection. With `--oob-listen`, summit sprays JNDI lookups into logged headers (`User-Agent`, `X-Forwarded-For`, `Referer`), a Shellshock function definition into `User-Agent`, and external entities at XML endpoints. The listener accepts both HTTP callbacks and raw JNDI/LDAP binds, and a finding is written only when the unique token arrives. No callback, no finding.
+
+**YAML check templates, without leaving the CLI.** 25 Nuclei-style templates ship in the package and run by default: 18 new CVE/exposure checks (Apache 2.4.50 traversal, Flink, Grafana, Citrix, Pulse Secure, Fortinet SSL-VPN, F5 iControl, PHPUnit, PHP-CGI, Symfony profiler, Go pprof, Swagger UI, ASP.NET trace, ELMAH, Tomcat examples, phpMyAdmin setup, permissive crossdomain policy, WordPress XML-RPC) plus the core admin/actuator/Docker/Kubernetes/source-map/WP-JSON checks. The engine supports path lists, word/regex/status/DSL matchers, negative matchers, `stop-at-first-match`, `follow-redirects` and Nuclei placeholders. `--no-templates` skips them; `--templates FILE_OR_DIR` adds your own; `--template-tags`, `--template-exclude-tags` and `--template-severity` select a subset; `summit templates --json` inventories them.
+
+**CI gates that separate old noise from new risk.** `summit scan ... --fail-on high` exits 1 when any reported finding is high or critical. Add `--baseline previous.json` and the gate only counts findings that are new or have regressed since that report - the failure your pipeline actually needs to act on. Reports are still written before the gate runs, and an unreadable baseline exits 2 rather than silently passing. The gate is deterministic, uses the same dedup key as `summit diff`, and keeps the exit-code contract stable for CI.
 
 **CAPTCHA: detect, do not solve.** reCAPTCHA, hCaptcha, Cloudflare Turnstile and challenge pages are detected and reported. Solving them automatically is out of scope by design - that line does not move.
 
@@ -286,13 +292,18 @@ False positives waste your triage time. False negatives get clients breached. Su
 | CRLF injection / response splitting | active | high | injected header materializes -> `confirmed`, CWE-113 |
 | TRACE method enabled (XST surface) | active | high | marker header echoed back by TRACE -> `confirmed`, CWE-693 |
 | Risky HTTP methods advertised | active | medium | Allow header lists TRACE/PUT/DELETE -> `likely`, CWE-650 |
-| Sensitive file exposure (.env, .git) | passive-origin | high | content signature, not just a 200 -> `confirmed`, CWE-538 |
+| Sensitive file exposure (.env, .git, cloud keys, dumps, backups) | passive-origin | high | content signature, not just a 200 -> `confirmed`, CWE-538 |
 | XXE (file disclosure via external entity) | active | high | local file content returned via entity -> `confirmed`, CWE-611 |
 | SSRF (out-of-band confirmed) | active | high | listener received the callback -> `confirmed`, CWE-918 |
 | Hardcoded secret in client-side code | passive | medium | vendor pattern + entropy, redacted -> `likely` (private keys `confirmed`), CWE-798 |
 | Known CVE in version banner | passive | low | offline CVE database match -> `needs-manual` (banners spoof) |
 | Open redirect | active | medium | 3xx Location to probe host -> `confirmed` |
 | Path traversal | active | high | OS file indicators -> `confirmed` |
+| XPath injection | active | high | fresh XML parser error vs baseline -> `confirmed`, CWE-643 |
+| Server-side includes injection | active | high | `exec` marker printed without the raw directive -> `confirmed`, CWE-96 |
+| Log4Shell (JNDI, OOB-confirmed) | active | critical | JNDI lookup reached our raw listener -> `confirmed`, CWE-917 |
+| Shellshock (Bash, OOB-confirmed) | active | critical | crafted header triggered a callback -> `confirmed`, CWE-78 |
+| Blind XXE (OOB-confirmed) | active | high | external entity fetched by the target -> `confirmed`, CWE-611 |
 | Broken access control (BOLA/IDOR) | authorize | critical | identical response for low-privilege role -> `confirmed` |
 | Email/user enumeration | active | medium | differential response for unknown identities -> `likely` |
 | Directory listing | passive-origin | medium | "Index of /" content signature -> `confirmed` |

@@ -1,0 +1,25 @@
+id: exposed-tomcat-examples
+info:
+  name: Tomcat Example Applications Exposed
+  severity: low
+  description: The Apache Tomcat sample applications are deployed, exposing demo servlets, JSPs, and session examples that widen the attack surface.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + Tomcat examples index - the default webapps are deployed'
+  classification:
+    cwe-id: CWE-200
+  impact: Sample endpoints can leak session handling behaviour or serve as a foothold for further attacks.
+  remediation: Remove the examples, docs, and ROOT webapps from production Tomcat.
+  tags: [tomcat, exposure]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/examples/'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - 'Apache Tomcat Examples'
+          - 'Servlet Examples'
+        condition: or
+      - type: status
+        status: 200
+    matchers-condition: and

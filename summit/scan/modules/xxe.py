@@ -45,7 +45,7 @@ def find_xxe_indicator(text: str) -> str | None:
     return None
 
 
-def _is_xml_candidate(url: str, field_names: list[str]) -> bool:
+def is_xml_candidate(url: str, field_names: list[str]) -> bool:
     haystack = url.lower() + " " + " ".join(name.lower() for name in field_names)
     return any(hint in haystack for hint in _XML_HINTS)
 
@@ -57,9 +57,9 @@ def run_xxe(client: HttpClient, forms: list[dict], base_url: str) -> list[Findin
             continue
         action = form.get("action") or ""
         fields = list((form.get("fields") or {}).keys())
-        if action and _is_xml_candidate(action, fields):
+        if action and is_xml_candidate(action, fields):
             candidates.append((action, fields))
-    if not candidates and _is_xml_candidate(base_url + "/xml", []):
+    if not candidates and is_xml_candidate(base_url + "/xml", []):
         candidates.append((base_url.rstrip("/") + "/xml", []))
 
     findings: list[Finding] = []

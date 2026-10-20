@@ -4,6 +4,7 @@ import ipaddress
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Callable
 from urllib.parse import urlencode
 
 from ..http.client import HttpClient
@@ -98,6 +99,9 @@ class ScanEngine:
         deep: bool = False,
         takeover: bool = True,
         oob_check: Check | None = None,
+        oob_callback_base: str = "",
+        oob_raw_base: str = "",
+        oob_hit_checker: Callable[[str], bool] | None = None,
     ) -> None:
         self.client = client
         self.active = active
@@ -107,6 +111,9 @@ class ScanEngine:
         self.deep = deep
         self.takeover = takeover
         self.oob_check = oob_check
+        self.oob_callback_base = oob_callback_base
+        self.oob_raw_base = oob_raw_base
+        self.oob_hit_checker = oob_hit_checker
         self.findings: list[Finding] = []
         self.errors: list[str] = []
         self.elapsed = 0.0
@@ -218,6 +225,21 @@ class ScanEngine:
                         self.add(finding)
                 except Exception as exc:
                     self.errors.append(f"xxe check failed: {exc}")
+                if self.oob_callback_base and self.oob_hit_checker is not None:
+                    from .modules.oob_spray import run_oob_spray
+
+                    try:
+                        for finding in run_oob_spray(
+                            self.client,
+                            base,
+                            spider_result.get("forms", []),
+                            self.oob_callback_base,
+                            self.oob_hit_checker,
+                            jndi_base=self.oob_raw_base,
+                        ):
+                            self.add(finding)
+                    except Exception as exc:
+                        self.errors.append(f"oob spray failed: {exc}")
                 if self.takeover:
                     host = origin.hostname or ""
                     if self._takeover_worthy(host):

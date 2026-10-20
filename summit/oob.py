@@ -12,12 +12,27 @@ anything, never proxies, and binds to 127.0.0.1 by default.
 
 from __future__ import annotations
 
+import re
 import secrets
+import socket
 import threading
 import time
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
+
+_RAW_TOKEN_RE = re.compile(rb"([a-z]{2,12}[a-z0-9]{0,8}[0-9a-f]{16})")
+
+
+def _extract_raw_token(data: bytes) -> str:
+    """Pull our probe token out of a non-HTTP payload (JNDI/LDAP bind).
+
+    Prefixes are alphanumeric (`log4j`, `xxe`, `shell`), so the pattern
+    allows digits between the letter prefix and the 16 hex characters.
+    """
+    match = _RAW_TOKEN_RE.search(data)
+    return match.group(1).decode() if match else ""
+
 
 
 def new_token(prefix: str = "sm") -> str:
@@ -103,6 +118,9 @@ class OobServer:
         self.advertise_host = advertise_host or ("127.0.0.1" if bind in ("0.0.0.0", "") else bind)
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self._raw_server: socket.socket | None = None
+        self._raw_thread: threading.Thread | None = None
+        self.raw_port = 0
         self._hits: list[OobHit] = []
         self._lock = threading.Lock()
 
@@ -118,9 +136,63 @@ class OobServer:
         self.port = server.server_address[1]
         self._thread = threading.Thread(target=server.serve_forever, name="summit-oob", daemon=True)
         self._thread.start()
+        self._start_raw()
         return self.base_url
 
+    def _start_raw(self) -> None:
+        """A plain TCP listener catches JNDI/LDAP callbacks.
+
+        Log4Shell resolves `jndi:ldap://host:port/token` with an LDAP
+        bind - bytes an HTTP server refuses. The token still travels in
+        the bind DN, so a raw accept() is enough to prove the lookup.
+        """
+        if self._raw_server is not None:
+            return
+        raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        raw.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        raw.bind((self.bind, 0))
+        raw.listen(16)
+        raw.settimeout(0.5)
+        self.raw_port = raw.getsockname()[1]
+        self._raw_server = raw
+        self._raw_thread = threading.Thread(target=self._serve_raw, name="summit-oob-raw", daemon=True)
+        self._raw_thread.start()
+
+    def _serve_raw(self) -> None:
+        server = self._raw_server
+        while self._raw_server is server and server is not None:
+            try:
+                conn, address = server.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            try:
+                conn.settimeout(2.0)
+                data = conn.recv(4096)
+            except OSError:
+                data = b""
+            finally:
+                try:
+                    conn.close()
+                except OSError:
+                    pass
+            self.record(OobHit(
+                token=_extract_raw_token(data),
+                method="TCP",
+                path="(jndi)",
+                query="",
+                remote=address[0] if address else "",
+            ))
+
     def stop(self) -> None:
+        if self._raw_server is not None:
+            try:
+                self._raw_server.close()
+            except OSError:
+                pass
+            self._raw_server = None
+            self._raw_thread = None
         if self._server is None:
             return
         self._server.shutdown()
@@ -138,6 +210,14 @@ class OobServer:
 
     def callback_url(self, token: str) -> str:
         return f"{self.base_url}/{token}"
+
+    @property
+    def raw_base(self) -> str:
+        """Host:port of the raw TCP listener (JNDI/LDAP callbacks)."""
+        return f"{self.advertise_host}:{self.raw_port}"
+
+    def raw_url(self, token: str) -> str:
+        return f"{self.raw_base}/{token}"
 
     # -- hit bookkeeping ---------------------------------------------------
 

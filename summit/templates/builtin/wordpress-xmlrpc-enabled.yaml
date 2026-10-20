@@ -1,0 +1,23 @@
+id: wordpress-xmlrpc-enabled
+info:
+  name: WordPress XML-RPC Enabled
+  severity: low
+  description: The WordPress XML-RPC endpoint is reachable, enabling amplified credential brute force and pingback-based denial of service.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 + the XML-RPC static response - the endpoint is enabled'
+  classification:
+    cwe-id: CWE-200
+  impact: Brute force amplification through system.multicall and abuse of pingback as a request reflector.
+  remediation: Disable XML-RPC if unused, or restrict it at the edge and enforce strong passwords.
+  tags: [wordpress, misconfig]
+requests:
+  - method: GET
+    path: '{{BaseURL}}/xmlrpc.php'
+    matchers:
+      - type: word
+        part: body
+        words:
+          - 'XML-RPC server accepts POST requests only.'
+      - type: status
+        status: 200
+    matchers-condition: and
