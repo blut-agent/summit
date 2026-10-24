@@ -28,6 +28,7 @@ from .http.models import HttpRequest
 from .oob import OobServer
 from .openapi import load_spec, spec_pages
 from .paramminer import mine
+from .progress import ProgressReporter
 from .proxy.server import ProxyServer
 from .race import findings_from as race_findings_from, run_race_test
 from .recon import missing_tools, render_report, run_recon
@@ -40,6 +41,7 @@ from .tls import audit as tls_audit
 from .updates import fetch_latest_version, install_tools, is_outdated, self_update
 
 _SILENT = False
+_PROGRESS: ProgressReporter | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -51,8 +53,8 @@ def _reconfigure_stdio() -> None:
     """Force UTF-8 on Windows consoles so glyphs and user data survive."""
     for stream in (sys.stdout, sys.stderr):
         try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, ValueError, OSError):
+            stream.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
+        except (AttributeError, ValueError, OSError, TypeError):
             pass
 
 
@@ -65,6 +67,8 @@ def _has_flag(argv: list[str] | None, flag: str) -> bool:
 def _log(msg: str) -> None:
     """Print a progress line unless --silent is active."""
     if not _SILENT:
+        if _PROGRESS is not None:
+            _PROGRESS.clear()
         print(msg)
 
 
@@ -161,6 +165,8 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--baseline", dest="baseline_path", default=None,
                       help="previous scan JSON; with --fail-on, only new or regressed findings count")
     scan.add_argument("--silent", action="store_true", help="suppress all progress/debug output, only show findings")
+    scan.add_argument("--progress", action=argparse.BooleanOptionalAction, default=None,
+                      help="show the live per-request scan log (default: on in a terminal, off when piped)")
     scan.add_argument("--no-color", action="store_true", help="disable coloured output for this run")
 
     setup = sub.add_parser("setup", help="interactive setup wizard - saves defaults to ~/.summit/config.json")
@@ -261,6 +267,17 @@ def build_parser() -> argparse.ArgumentParser:
     race_p.add_argument("--cookie", default=None, help="Cookie header value")
     race_p.add_argument("--timeout", type=float, default=10.0)
     race_p.add_argument("--json", dest="json_path", help="write findings as JSON")
+
+    map_p = sub.add_parser("map", help="crawl a target and map pages, forms, tech and parameters")
+    map_p.add_argument("url")
+    map_p.add_argument("--depth", type=int, default=3)
+    map_p.add_argument("--max-pages", type=int, default=50)
+    map_p.add_argument("--timeout", type=float, default=10.0)
+    map_p.add_argument("--json", dest="json_path", help="write the surface map as JSON")
+    map_p.add_argument("--html", dest="html_path", help="write the surface map as HTML")
+    map_p.add_argument("--markdown", dest="markdown_path", help="write the surface map as Markdown")
+    map_p.add_argument("--progress", action=argparse.BooleanOptionalAction, default=None,
+                      help="show the live crawl progress (default: on in a terminal, off when piped)")
 
     return parser
 
@@ -363,7 +380,14 @@ def _template_matches(template, tags: set[str], exclude_tags: set[str], severiti
     return True
 
 
-def _run_templates(args: argparse.Namespace, settings: Settings, engine: ScanEngine, client: HttpClient, result: dict) -> None:
+def _run_templates(
+    args: argparse.Namespace,
+    settings: Settings,
+    engine: ScanEngine,
+    client: HttpClient,
+    result: dict,
+    progress: ProgressReporter | None = None,
+) -> None:
     """Run the built-in YAML templates, plus any custom ones the user points at."""
     if getattr(args, "no_templates", False):
         return
@@ -398,8 +422,7 @@ def _run_templates(args: argparse.Namespace, settings: Settings, engine: ScanEng
         print(colors.warn("no target URL available for template requests - skipping templates"))
         return
 
-    ran = 0
-    executed = 0
+    selected = []
     for file in files:
         try:
             template = load_template(str(file))
@@ -413,20 +436,53 @@ def _run_templates(args: argparse.Namespace, settings: Settings, engine: ScanEng
             for error in errors:
                 print(colors.warn(error))
             continue
-        for finding in run_template(template, client, base_url):
+        selected.append(template)
+
+    if progress is not None:
+        progress.phase("TEMPLATES", len(selected))
+
+    ran = 0
+    executed = 0
+    for template in selected:
+        if progress is not None:
+            progress.task(template.id, "RUN", base_url)
+            before = len(engine.findings)
+
+            def _on_template_request(method: str, url: str, template_id: str = template.id) -> None:
+                progress.event(template_id, method, url)
+
+            findings = run_template(template, client, base_url, on_request=_on_template_request)
+        else:
+            findings = run_template(template, client, base_url)
+        for finding in findings:
             engine.add(finding)
             ran += 1
         executed += 1
-    _phase("TEMPLATES", f"ran {executed} template(s) - {ran} finding(s)")
+        if progress is not None:
+            produced = len(engine.findings) - before
+            if produced > 0:
+                progress.hit(produced)
+
+    summary = f"ran {executed} template(s) - {ran} finding(s)"
+    if progress is not None:
+        progress.finish()
+    _phase("TEMPLATES", summary)
 
 
 def _cmd_scan(args: argparse.Namespace, settings: Settings) -> int:
-    global _SILENT
+    global _SILENT, _PROGRESS
     _SILENT = bool(getattr(args, "silent", False))
     if not args.url and not args.openapi_path:
         print(colors.fail("scan needs a target URL (or --openapi PATH)"))
         return 2
     _banner()
+
+    progress_choice = getattr(args, "progress", None)
+    progress_enabled = not _SILENT and (
+        sys.stderr.isatty() if progress_choice is None else bool(progress_choice)
+    )
+    progress = ProgressReporter(enabled=progress_enabled)
+    _PROGRESS = progress
 
     # --- merge flags with saved settings; deep mode raises crawl defaults ---
     deep = settings.deep if args.deep is None else args.deep
@@ -458,13 +514,23 @@ def _cmd_scan(args: argparse.Namespace, settings: Settings) -> int:
     scan_started = time.monotonic()
 
     if args.openapi_path:
+        progress.phase("RECON")
         spec = load_spec(args.openapi_path)
         result = spec_pages(client, spec)
+        progress.finish()
         _phase("RECON", f"openapi spec loaded: {len(result['pages'])} target(s), {len(result['errors'])} error(s)")
     else:
-        spider = Spider(client, max_depth=depth, max_pages=max_pages, delay=delay)
+        progress.phase("RECON", max_pages)
+        spider = Spider(
+            client,
+            max_depth=depth,
+            max_pages=max_pages,
+            delay=delay,
+            on_page=lambda url: progress.event("crawl", "GET", url),
+        )
         _phase("RECON", f"crawling {colors.bold(args.url)} (depth={depth}, max_pages={max_pages}) ...")
         result = spider.crawl(args.url)
+        progress.finish()
         _phase("RECON", f"visited {len(result['visited'])} page(s), {len(result['forms'])} form(s), "
                         f"{len(result['external_links'])} outbound link(s), {len(result['errors'])} request error(s)")
     _phase("RECON", f"completed in {_fmt_duration(time.monotonic() - scan_started)}")
@@ -490,6 +556,8 @@ def _cmd_scan(args: argparse.Namespace, settings: Settings) -> int:
         try:
             base = oob_server.start()
         except OSError as exc:
+            progress.close()
+            _PROGRESS = None
             print(colors.fail(f"could not start OOB listener on {args.oob_bind}:{args.oob_listen}: {exc}"))
             return 2
         _phase("INIT", f"OOB listener up on {colors.url_text(base)} - blind findings fire only on a real callback")
@@ -517,12 +585,13 @@ def _cmd_scan(args: argparse.Namespace, settings: Settings) -> int:
                 (lambda token: oob_server.wait_for(token, timeout=2.0) is not None)
                 if oob_server else None
             ),
+            progress=progress,
         )
         _phase("SCAN", f"running passive + active checks (workers={workers}{', deep mode' if deep else ''}) ...")
         engine.scan(result)
         _phase("SCAN", f"completed in {_fmt_duration(time.monotonic() - vuln_started)} - {len(engine.findings)} raw finding(s)")
 
-        _run_templates(args, settings, engine, client, result)
+        _run_templates(args, settings, engine, client, result, progress=progress)
 
         findings = _apply_severity_filters(engine.findings, args)
         total_elapsed = time.monotonic() - scan_started
@@ -558,6 +627,9 @@ def _cmd_scan(args: argparse.Namespace, settings: Settings) -> int:
             _log("  " + colors.ok(f"JUnit XML report written to {args.junit_path}"))
         return _apply_ci_gate(findings, args)
     finally:
+        if _PROGRESS is not None:
+            _PROGRESS.close()
+            _PROGRESS = None
         if oob_server is not None:
             oob_server.stop()
 
@@ -1093,6 +1165,59 @@ def _cmd_repeater(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_map(args: argparse.Namespace) -> int:
+    global _SILENT, _PROGRESS
+    _SILENT = getattr(args, "silent", False)
+    _banner(compact=True)
+    from .map import map_target, write_map_html, write_map_json, write_map_markdown
+
+    progress_choice = getattr(args, "progress", None)
+    progress_enabled = not _SILENT and (
+        sys.stderr.isatty() if progress_choice is None else bool(progress_choice)
+    )
+    progress = ProgressReporter(enabled=progress_enabled)
+    _PROGRESS = progress
+
+    client = HttpClient(timeout=args.timeout)
+    started = time.monotonic()
+    _phase("MAP", f"crawling {colors.bold(args.url)} (depth={args.depth}, max_pages={args.max_pages}) ...")
+    try:
+        surface = map_target(
+            client,
+            args.url,
+            max_depth=args.depth,
+            max_pages=args.max_pages,
+            on_page=lambda url: progress.event("crawl", "GET", url),
+        )
+    except ValueError as exc:
+        print(colors.fail(str(exc)))
+        return 2
+    finally:
+        progress.finish()
+        _PROGRESS = None
+
+    summary = surface["summary"]
+    _phase(
+        "MAP",
+        f"completed in {_fmt_duration(time.monotonic() - started)} - "
+        f"{summary['pages']} page(s), {summary['forms']} form(s), "
+        f"{summary['injection_points']} injection point(s), {summary['technologies']} tech item(s)",
+    )
+    for error in surface.get("errors", [])[:5]:
+        _log(colors.warn(f"crawl error: {error}"))
+
+    if args.json_path:
+        write_map_json(surface, args.json_path)
+        _log("  " + colors.ok(f"JSON surface map written to {args.json_path}"))
+    if args.html_path:
+        write_map_html(surface, args.html_path)
+        _log("  " + colors.ok(f"HTML surface map written to {args.html_path}"))
+    if args.markdown_path:
+        write_map_markdown(surface, args.markdown_path)
+        _log("  " + colors.ok(f"Markdown surface map written to {args.markdown_path}"))
+    return 0
+
+
 def _cmd_encode(args: argparse.Namespace) -> int:
     try:
         print(encode_text(args.value, args.encoding))
@@ -1160,6 +1285,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_tls(args)
         if args.command == "race":
             return _cmd_race(args)
+        if args.command == "map":
+            return _cmd_map(args)
         if args.command == "encode":
             return _cmd_encode(args)
         if args.command == "decode":

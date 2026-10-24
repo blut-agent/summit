@@ -4,6 +4,53 @@ All notable changes to summit are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [v1.5.0] - 2026-10-25
+
+### Added
+
+- New `summit map` command: crawl a target once and produce a structured
+  attack-surface map without sending attack traffic.
+- `map` can export JSON, Markdown and a self-contained HTML report.
+- The map inventories crawled pages, titles, forms, parameters, JavaScript
+  endpoints discovered by the spider, outbound links, technologies, and the
+  injection points the scanner would target.
+- `map --progress` / `--no-progress` reuse the live per-request log from v1.4.0.
+- 12 new exposure templates: Git metadata, `.env`, AWS credentials, SSH
+  private keys, SQL backups, phpinfo, Apache server-status, etcd, Consul,
+  Docker registry, and the Jupyter contents API. The bundle now contains
+  37 templates.
+- `classification.cve-id` on every bundled CVE template, and a consistency
+  check between the `cve` tag and the CVE metadata.
+- Template validation now requires a CWE id, rejects malformed or duplicate
+  CVE ids, and refuses `confirmed` templates whose only evidence is a status
+  code.
+
+
+## [v1.4.0] - 2026-10-24
+
+### Added
+
+- Live scan progress: every crawl, check, link validation, deep probe, and
+  template request prints the method and URL while the scan is running.
+  Interactive terminals update one line; piped logs keep one line per event.
+  `--progress` forces it on and `--no-progress` turns it off.
+- 12 new exposure templates: Git metadata, `.env`, AWS credentials, SSH
+  private keys, SQL backups, phpinfo, Apache server-status, etcd, Consul,
+  Docker registry, and the Jupyter contents API. The bundle now contains
+  37 templates.
+- `classification.cve-id` on every bundled CVE template, and a consistency
+  check between the `cve` tag and the CVE metadata.
+- Template validation now requires a CWE id, rejects malformed or duplicate
+  CVE ids, and refuses `confirmed` templates whose only evidence is a status
+  code.
+
+### Changed
+
+- The `TEMPLATES` phase reports the actual template request URL and finding
+  count as it runs.
+- Documentation, quick-start output, and template inventory now describe the
+  37-template bundle.
+
 ## [v1.3.0] - 2026-10-20
 
 ### Added

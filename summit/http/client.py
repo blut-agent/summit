@@ -4,13 +4,10 @@ import threading
 import time
 
 import requests
-import urllib3
 
 from .. import __version__
 from ..ratelimit import RateLimiter
 from .models import HttpRequest, HttpResponse
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 DEFAULT_HEADERS = {
     "User-Agent": f"Summit/{__version__} (+https://github.com/pennacle-security/summit)",
@@ -29,7 +26,7 @@ class HttpClient:
     def __init__(
         self,
         timeout: float = 10.0,
-        verify_tls: bool = False,
+        verify_tls: bool = True,
         user_agent: str | None = None,
         delay: float = 0.0,
         rate: float | None = None,

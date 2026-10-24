@@ -15,6 +15,12 @@ Two terminals. No internet needed. The target binds to `127.0.0.1` only.
 python examples/vuln_app.py
 ```
 
+**Terminal 2** - inventory only, no attack traffic:
+
+```bash
+summit map http://127.0.0.1:8765 --depth 1 --max-pages 3
+```
+
 **Terminal 2** - run the full scan:
 
 ```bash
@@ -24,13 +30,13 @@ summit scan http://127.0.0.1:8765 --json scan.json --fail-on high
 You should see output like this (abbreviated):
 
 ```
-▲ SUMMIT v1.3.0 · pennacle security
+▲ SUMMIT v1.5.0 · pennacle security
 │ ▸ RECON crawling http://127.0.0.1:8765 (depth=3, max_pages=50) ...
 │ ▸ RECON visited 26 page(s), 1 form(s), 4 outbound link(s), 0 request error(s)
 │ ▸ RECON completed in 0.4s
 │ ▸ SCAN running passive + active checks (workers=8) ...
 │ ▸ SCAN completed in 2.7s - 127 raw finding(s)
-│ ▸ TEMPLATES ran 25 template(s) - 0 finding(s)
+│ ▸ TEMPLATES ran 37 template(s) - 0 finding(s)
 │ ▸ DONE 1061 request(s) in 3.4s (workers=8, rate=unlimited, retries=1)
 │ ▸ DONE smart order: 12 high-signal injection point(s) probed first
 

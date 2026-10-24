@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections import deque
 from html.parser import HTMLParser
+from typing import Callable
 from urllib.parse import urlencode, urljoin, urlsplit
 
 from ..http.client import HttpClient
@@ -62,11 +63,13 @@ class Spider:
         max_depth: int = 3,
         max_pages: int = 50,
         delay: float = 0.0,
+        on_page: Callable[[str], None] | None = None,
     ) -> None:
         self.client = client
         self.max_depth = max_depth
         self.max_pages = max_pages
         self.delay = delay
+        self.on_page = on_page
         self.scope_hosts = {_normalize_host(h) for h in scope_hosts} if scope_hosts else None
 
     def in_scope(self, url: str) -> bool:
@@ -79,6 +82,8 @@ class Spider:
         seeds: list[str] = []
         sitemap_urls: list[str] = []
         try:
+            if self.on_page is not None:
+                self.on_page(origin + "/robots.txt")
             robots = self.client.send(HttpRequest(method="GET", url=origin + "/robots.txt"))
             if robots.status == 200:
                 for line in robots.text[:50_000].splitlines():
@@ -103,6 +108,8 @@ class Spider:
 
     def _parse_sitemap(self, url: str) -> list[str]:
         try:
+            if self.on_page is not None:
+                self.on_page(url)
             response = self.client.send(HttpRequest(method="GET", url=url))
         except Exception:
             return []
@@ -139,6 +146,8 @@ class Spider:
             if not clean or clean.rstrip("/") in visited or not self.in_scope(clean):
                 continue
             visited.add(clean.rstrip("/"))
+            if self.on_page is not None:
+                self.on_page(clean)
             try:
                 # Redirects are followed during crawling: endpoints behind a
                 # 302 are part of the attack surface, and missing them was a

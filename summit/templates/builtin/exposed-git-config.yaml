@@ -1,0 +1,26 @@
+id: exposed-git-config
+info:
+  name: Exposed Git repository config
+  severity: high
+  description: The web root serves .git/config, which can disclose repository remotes, branches, and credentials embedded in remote URLs.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 plus a parsed Git config section and repository format key'
+  classification:
+    cwe-id: CWE-538
+  impact: An attacker can reconstruct source code and may recover credentials stored in remote URLs.
+  remediation: Block access to .git and remove repository metadata from the deployed web root.
+  tags: [exposure, git, source-code]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/.git/config'
+    matchers:
+      - type: word
+        part: body
+        words: ['[core]']
+      - type: word
+        part: body
+        words: ['repositoryformatversion']
+      - type: status
+        status: [200]
+    matchers-condition: and

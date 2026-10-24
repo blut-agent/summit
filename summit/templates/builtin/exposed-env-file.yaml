@@ -1,0 +1,23 @@
+id: exposed-env-file
+info:
+  name: Exposed environment file
+  severity: high
+  description: A .env file is served from the web root and contains production-style secret assignments.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 plus one or more real secret assignment lines from a .env file'
+  classification:
+    cwe-id: CWE-538
+  impact: Database passwords, signing keys, and cloud credentials can be used directly by an attacker.
+  remediation: Deny access to dotfiles and keep environment files outside the document root.
+  tags: [exposure, secrets, config]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/.env'
+    matchers:
+      - type: regex
+        part: body
+        regex: '(?m)^(?:APP_KEY|APP_SECRET|DB_PASSWORD|SECRET_KEY|AWS_SECRET_ACCESS_KEY)=.+$'
+      - type: status
+        status: [200]
+    matchers-condition: and

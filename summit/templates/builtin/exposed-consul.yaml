@@ -1,0 +1,26 @@
+id: exposed-consul
+info:
+  name: Exposed Consul agent API
+  severity: high
+  description: The Consul agent self endpoint is public and returns cluster configuration.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 plus the agent config object and datacenter field'
+  classification:
+    cwe-id: CWE-306
+  impact: An unauthenticated Consul API can disclose services, health data, and cluster metadata.
+  remediation: Enable Consul ACLs and bind the HTTP API to a private management interface.
+  tags: [exposure, consul, service-mesh]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/v1/agent/self'
+    matchers:
+      - type: word
+        part: body
+        words: ['"Datacenter"']
+      - type: word
+        part: body
+        words: ['"Config"']
+      - type: status
+        status: [200]
+    matchers-condition: and

@@ -92,6 +92,6 @@ Every check states its **confirmation basis**. `confirmed` = an observed fact, `
 
 ## YAML templates
 
-The 25 bundled Nuclei-style templates run with every scan by default. They cover the CVE checks above plus default admin panels, Spring Boot actuator, Docker/Kubernetes APIs, source maps, WordPress user enumeration, exposed Symfony profiler, Go pprof, Swagger UI, ASP.NET trace, ELMAH, Tomcat examples, permissive crossdomain policy, WordPress XML-RPC and phpMyAdmin setup.
+The 37 bundled Nuclei-style templates run with every scan by default. They cover the CVE checks above plus default admin panels, Spring Boot actuator, Docker/Kubernetes APIs, source maps, WordPress user enumeration, exposed Symfony profiler, Go pprof, Swagger UI, ASP.NET trace, ELMAH, Tomcat examples, permissive crossdomain policy, WordPress XML-RPC and phpMyAdmin setup. v1.4 adds Git metadata, .env, AWS credentials, SSH private keys, SQL backups, phpinfo, Apache server-status, etcd, Consul, Docker registry, and Jupyter contents checks.
 
 Every template states its confidence rule; HIGH/CRITICAL templates cannot load without one. `--no-templates` skips the bundle, `--templates FILE_OR_DIR` adds custom templates, and `summit templates` lists or validates them.

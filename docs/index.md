@@ -24,9 +24,10 @@ No internet needed for the core demo. The target binds to 127.0.0.1 only.
 | Area | Coverage |
 |---|---|
 | Scanner | passive checks (headers, cookies, error leaks, CORS, WAF, CAPTCHA, takeover, JS secrets, CSRF, cache hygiene) + active checks (SQLi error/boolean/time, XSS and DOM-XSS candidates, WAF bypass, host header, CORS, redirect, traversal, XPath, SSI, XXE, SSRF, Log4Shell, Shellshock, command injection, SSTI, CRLF, HPP, HTTP method hygiene) |
-| Templates | 25 bundled Nuclei-style YAML checks (CVE/exposure), run by default with `--no-templates` opt-out; tag and severity filters |
+| Templates | 37 bundled Nuclei-style YAML checks (CVE/exposure), run by default with `--no-templates` opt-out; tag and severity filters |
 | CI gates | `--fail-on SEVERITY` and `--baseline previous.json` diff gating with stable 0/1/2 exit codes |
 | Link health | broken-link hijacking: dead domains, parked domains, private-range guard |
+| Attack surface | crawl once and inventory pages, forms, parameters, technologies and outbound links |
 | Fuzzing | directory brute force with wildcard-baseline false-positive filtering |
 | Proxy | intercepting HTTP proxy with a SQLite site map |
 | Recon | chains subfinder -> httpx -> nmap, with honest failure notes |

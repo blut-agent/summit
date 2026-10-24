@@ -23,5 +23,5 @@ keywords:
   - proxy
   - fuzzer
 license: MIT
-version: v0.4.0
-date-released: "2026-10-15"
+version: v1.5.0
+date-released: "2026-10-25"

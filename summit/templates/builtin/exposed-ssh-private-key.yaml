@@ -1,0 +1,24 @@
+id: exposed-ssh-private-key
+info:
+  name: Exposed SSH private key
+  severity: critical
+  description: A private key file is downloadable from the web root.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 plus a private-key PEM header'
+  classification:
+    cwe-id: CWE-538
+  impact: Anyone with the key can authenticate to every service that accepts it.
+  remediation: Remove the file from the web root, rotate the key pair, and restrict key storage permissions.
+  tags: [exposure, secrets, ssh]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/.ssh/id_rsa'
+      - '{{BaseURL}}/.ssh/id_ed25519'
+    matchers:
+      - type: word
+        part: body
+        words: ['BEGIN RSA PRIVATE KEY', 'BEGIN OPENSSH PRIVATE KEY', 'BEGIN EC PRIVATE KEY']
+      - type: status
+        status: [200]
+    matchers-condition: and

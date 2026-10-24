@@ -1,0 +1,23 @@
+id: exposed-git-head
+info:
+  name: Exposed Git HEAD file
+  severity: medium
+  description: The web root serves .git/HEAD, confirming that a Git repository is reachable over HTTP.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 plus a valid Git HEAD ref or object id'
+  classification:
+    cwe-id: CWE-538
+  impact: The exposed repository metadata gives an attacker the starting point for downloading source history and secrets.
+  remediation: Block access to .git and deploy only build artifacts, not working copies.
+  tags: [exposure, git, source-code]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/.git/HEAD'
+    matchers:
+      - type: word
+        part: body
+        words: ['ref: refs/heads/']
+      - type: status
+        status: [200]
+    matchers-condition: and

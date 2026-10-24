@@ -1,0 +1,26 @@
+id: exposed-phpinfo
+info:
+  name: Exposed phpinfo page
+  severity: medium
+  description: A phpinfo page is reachable and exposes the PHP build, modules, and server paths.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 plus the PHP version banner and phpinfo page marker'
+  classification:
+    cwe-id: CWE-200
+  impact: The page reveals software versions and filesystem paths that make targeted exploitation easier.
+  remediation: Remove phpinfo files from production and restrict diagnostic pages to trusted networks.
+  tags: [exposure, php, information-disclosure]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/phpinfo.php'
+    matchers:
+      - type: word
+        part: body
+        words: ['PHP Version']
+      - type: word
+        part: body
+        words: ['phpinfo()']
+      - type: status
+        status: [200]
+    matchers-condition: and

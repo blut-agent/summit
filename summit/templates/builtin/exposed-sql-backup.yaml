@@ -1,0 +1,26 @@
+id: exposed-sql-backup
+info:
+  name: Exposed SQL backup
+  severity: high
+  description: A SQL dump is downloadable from a predictable backup path and contains table data.
+  confidence: likely
+  confidence-rule: 'A backup filename returns both table DDL and row inserts; review the file before treating it as live data'
+  classification:
+    cwe-id: CWE-530
+  impact: A complete database backup can expose personal data, password hashes, and application secrets.
+  remediation: Store backups outside the web root and require authentication for any download endpoint.
+  tags: [exposure, backup, database]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/backup.sql'
+    matchers:
+      - type: word
+        part: body
+        words: ['CREATE TABLE']
+      - type: word
+        part: body
+        words: ['INSERT INTO']
+      - type: status
+        status: [200]
+    matchers-condition: and

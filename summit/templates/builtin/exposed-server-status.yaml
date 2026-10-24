@@ -1,0 +1,26 @@
+id: exposed-server-status
+info:
+  name: Exposed Apache server-status
+  severity: low
+  description: The Apache server-status endpoint is public and reports live worker activity.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 plus the Apache status heading and access counters'
+  classification:
+    cwe-id: CWE-200
+  impact: Request URLs and client addresses can leak from the status table, aiding reconnaissance.
+  remediation: Restrict /server-status to localhost or remove the status module from public virtual hosts.
+  tags: [exposure, apache, information-disclosure]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/server-status'
+    matchers:
+      - type: word
+        part: body
+        words: ['Apache Server Status']
+      - type: word
+        part: body
+        words: ['Total Accesses']
+      - type: status
+        status: [200]
+    matchers-condition: and

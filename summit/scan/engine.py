@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 
 from ..http.client import HttpClient
 from ..http.models import HttpRequest
+from ..progress import ProgressReporter
 from ..smart import prioritize, score_point
 from .core import Check, Finding, InjectionPoint
 from .linkcheck import check_links
@@ -102,6 +103,7 @@ class ScanEngine:
         oob_callback_base: str = "",
         oob_raw_base: str = "",
         oob_hit_checker: Callable[[str], bool] | None = None,
+        progress: ProgressReporter | None = None,
     ) -> None:
         self.client = client
         self.active = active
@@ -114,6 +116,7 @@ class ScanEngine:
         self.oob_callback_base = oob_callback_base
         self.oob_raw_base = oob_raw_base
         self.oob_hit_checker = oob_hit_checker
+        self.progress = progress
         self.findings: list[Finding] = []
         self.errors: list[str] = []
         self.elapsed = 0.0
@@ -132,8 +135,18 @@ class ScanEngine:
             self.findings.append(finding)
 
     def _run_check(self, check: Check, point: InjectionPoint) -> list[Finding]:
+        if self.progress is not None:
+            self.progress.task(
+                check.check_id,
+                point.request.method,
+                point.request.url,
+                f"param={point.param}" if point.param else "",
+            )
         try:
-            return check.run(point, self.client)
+            findings = check.run(point, self.client)
+            if self.progress is not None:
+                self.progress.hit(len(findings))
+            return findings
         except Exception as exc:
             # One broken check must never kill the scan.
             self.errors.append(f"{check.check_id} failed on {point.request.url} [{point.param}]: {exc}")
@@ -143,9 +156,19 @@ class ScanEngine:
         started = time.monotonic()
         set_deep(self.deep)
 
-        for response in spider_result.get("pages", []):
+        pages = spider_result.get("pages", [])
+        passive_before = len(self.findings)
+        if self.progress is not None:
+            self.progress.phase("PASSIVE", len(pages))
+        for response in pages:
+            if self.progress is not None:
+                self.progress.task("passive", "GET", response.request.url)
             for finding in run_passive(response):
                 self.add(finding)
+        if self.progress is not None:
+            self.progress.finish(
+                f"[PASSIVE] {len(pages)} page(s), {len(self.findings) - passive_before} finding(s)"
+            )
 
         if self.active:
             # Detect backend technology for tech-aware prioritization
@@ -164,20 +187,43 @@ class ScanEngine:
                 checks.append(self.oob_check)
             tasks = [(check, point) for check in checks for point in targets]
             if tasks:
+                active_before = len(self.findings)
+                if self.progress is not None:
+                    self.progress.phase("ACTIVE", len(tasks))
                 with ThreadPoolExecutor(max_workers=self.workers) as pool:
                     futures = [pool.submit(self._run_check, check, point) for check, point in tasks]
                     for future in as_completed(futures):
                         for finding in future.result():
                             self.add(finding)
+                if self.progress is not None:
+                    self.progress.finish(
+                        f"[ACTIVE] {len(tasks)} check(s), {len(self.findings) - active_before} finding(s)"
+                    )
 
         if self.linkcheck_enabled:
             external = spider_result.get("external_links", [])
             if external:
+                link_before = len(self.findings)
+                if self.progress is not None:
+                    self.progress.phase("LINKCHECK", len(external))
                 try:
-                    for finding in check_links(external, workers=self.workers, timeout=self.client.timeout):
+                    for finding in check_links(
+                        external,
+                        workers=self.workers,
+                        timeout=self.client.timeout,
+                        on_url=(
+                            (lambda url: self.progress.task("linkcheck", "GET", url))
+                            if self.progress is not None else None
+                        ),
+                    ):
                         self.add(finding)
                 except Exception as exc:
                     self.errors.append(f"linkcheck failed: {exc}")
+                if self.progress is not None:
+                    self.progress.finish(
+                        f"[LINKCHECK] {len(external)} link(s), "
+                        f"{len(self.findings) - link_before} finding(s)"
+                    )
 
         # Sensitive-file check runs once per scan against the target origin -
         # it is path-based, not parameter-based like the active checks.
@@ -191,11 +237,24 @@ class ScanEngine:
 
                 origin = urlsplit(pages[0].request.url)
                 base = f"{origin.scheme}://{origin.netloc}"
+                host = origin.hostname or ""
+                takeover_step = bool(self.takeover and self._takeover_worthy(host))
+                oob_step = bool(self.oob_callback_base and self.oob_hit_checker is not None)
+                deep_steps = 6 + int(oob_step) + int(takeover_step)
+                deep_before = len(self.findings)
+                if self.progress is not None:
+                    self.progress.phase("DEEP", deep_steps)
+
+                if self.progress is not None:
+                    self.progress.task("sensitive-files", "GET", base)
                 try:
                     for finding in run_sensitive_files(self.client, base):
                         self.add(finding)
                 except Exception as exc:
                     self.errors.append(f"sensitive-file check failed: {exc}")
+
+                if self.progress is not None:
+                    self.progress.task("graphql-introspection", "POST", base)
                 try:
                     for finding in check_graphql(self.client, base):
                         self.add(finding)
@@ -203,6 +262,8 @@ class ScanEngine:
                     self.errors.append(f"graphql check failed: {exc}")
                 from .modules.csrf import check_csrf_forms
 
+                if self.progress is not None:
+                    self.progress.task("csrf-forms", "GET", base)
                 try:
                     for finding in check_csrf_forms(None, spider_result.get("forms", [])):
                         self.add(finding)
@@ -210,24 +271,35 @@ class ScanEngine:
                     self.errors.append(f"csrf check failed: {exc}")
                 from .modules.directory_listing import run_directory_listing
 
+                if self.progress is not None:
+                    self.progress.task("directory-listing", "GET", base)
                 try:
                     for finding in run_directory_listing(self.client, base):
                         self.add(finding)
                 except Exception as exc:
                     self.errors.append(f"directory-listing check failed: {exc}")
+
+                if self.progress is not None:
+                    self.progress.task("http-methods", "OPTIONS", base)
                 try:
                     for finding in run_http_methods(self.client, base):
                         self.add(finding)
                 except Exception as exc:
                     self.errors.append(f"http-methods check failed: {exc}")
+
+                if self.progress is not None:
+                    self.progress.task("xxe", "POST", base)
                 try:
                     for finding in run_xxe(self.client, spider_result.get("forms", []), base):
                         self.add(finding)
                 except Exception as exc:
                     self.errors.append(f"xxe check failed: {exc}")
-                if self.oob_callback_base and self.oob_hit_checker is not None:
+
+                if oob_step:
                     from .modules.oob_spray import run_oob_spray
 
+                    if self.progress is not None:
+                        self.progress.task("oob-spray", "POST", base)
                     try:
                         for finding in run_oob_spray(
                             self.client,
@@ -240,14 +312,20 @@ class ScanEngine:
                             self.add(finding)
                     except Exception as exc:
                         self.errors.append(f"oob spray failed: {exc}")
-                if self.takeover:
-                    host = origin.hostname or ""
-                    if self._takeover_worthy(host):
-                        try:
-                            for finding in check_cname_takeover(self.client, [host]):
-                                self.add(finding)
-                        except Exception as exc:
-                            self.errors.append(f"cname takeover check failed: {exc}")
+
+                if takeover_step:
+                    if self.progress is not None:
+                        self.progress.task("cname-takeover", "DNS", host)
+                    try:
+                        for finding in check_cname_takeover(self.client, [host]):
+                            self.add(finding)
+                    except Exception as exc:
+                        self.errors.append(f"cname takeover check failed: {exc}")
+
+                if self.progress is not None:
+                    self.progress.finish(
+                        f"[DEEP] {deep_steps} check(s), {len(self.findings) - deep_before} finding(s)"
+                    )
 
         self.elapsed = time.monotonic() - started
         return self.findings

@@ -1,0 +1,23 @@
+id: exposed-docker-registry
+info:
+  name: Exposed Docker registry API
+  severity: medium
+  description: A Docker registry API responds without authentication and advertises its distribution API version.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 plus the Docker-Distribution-Api-Version response header'
+  classification:
+    cwe-id: CWE-306
+  impact: An anonymous registry can leak image names, layers, and embedded build secrets.
+  remediation: Require authentication for registry pulls and push operations.
+  tags: [exposure, docker, registry]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/v2/'
+    matchers:
+      - type: word
+        part: header
+        words: ['Docker-Distribution-Api-Version']
+      - type: status
+        status: [200]
+    matchers-condition: and

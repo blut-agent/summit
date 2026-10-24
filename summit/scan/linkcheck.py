@@ -27,6 +27,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Callable
 from urllib.parse import urlsplit
 
 import requests
@@ -212,14 +213,21 @@ def check_links(
     external_urls: list[str],
     workers: int = 8,
     timeout: float = 10.0,
+    on_url: Callable[[str], None] | None = None,
 ) -> list[Finding]:
     """Check every unique external URL once, in parallel. One finding per issue."""
     unique = sorted({u.split("#", 1)[0] for u in external_urls if u.startswith(("http://", "https://"))})
     findings: list[Finding] = []
     if not unique:
         return findings
+
+    def probe(url: str) -> Finding | None:
+        if on_url is not None:
+            on_url(url)
+        return _check_one(url, timeout)
+
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(_check_one, url, timeout) for url in unique]
+        futures = [pool.submit(probe, url) for url in unique]
         for future in as_completed(futures):
             finding = future.result()
             if finding is not None:

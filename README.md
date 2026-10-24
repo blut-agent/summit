@@ -14,11 +14,11 @@
   <img src="https://img.shields.io/badge/dependencies-3%20FLOSS%20packages-8b949e" alt="three dependencies">
 </p>
 
-<p align="center">One scriptable CLI for web security testing: scanner, proxy, fuzzer, authorization testing, WAF analysis, link-hijack detection, race conditions and recon.<br>55+ checks across 11 families, plus 25 bundled YAML templates. Free where the equivalents are paid - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
+<p align="center">One scriptable CLI for web security testing: scanner, proxy, fuzzer, authorization testing, WAF analysis, link-hijack detection, race conditions and recon.<br>55+ checks across 11 families, plus 37 bundled YAML templates and a no-traffic attack-surface map. Free where the equivalents are paid - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
 
 ---
 
-We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit now has 55+ checks across 11 families. Summit is that tool - v1.3.0, MIT, built in the open. Three dependencies (`requests`, `pyyaml`, `packaging`), all FLOSS, all standard.
+We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit now has 55+ checks across 11 families and a one-command attack-surface map. Summit is that tool - v1.5.0, MIT, built in the open. Three dependencies (`requests`, `pyyaml`, `packaging`), all FLOSS, all standard.
 
 **Full documentation:** [pennacle-security.github.io/summit](https://pennacle-security.github.io/summit/)
 
@@ -47,7 +47,7 @@ Capabilities that usually sit behind paid tooling, plus the scanning core:
 | Hidden parameter discovery | `summit mine` | Param Miner-style add-on |
 | OpenAPI-driven scanning | `summit scan --openapi` | add-ons |
 | WAF fingerprinting + bypass probing | built in | partial / add-ons |
-| Broken-link hijack detection | built in | paid extension |
+| Attack-surface mapping | `summit map` | add-ons / paid workflows |
 | SQLi, XSS, redirect, traversal, takeover, host header, CORS | built in | core scanners (free) |
 | Recon chain: subfinder -> httpx -> nmap | `summit recon` | manual gluing |
 | Race condition detection | `summit race` | Burp Turbo Intruder (paid) |
@@ -94,6 +94,7 @@ Then watch it work against a deliberately vulnerable local target:
 
 ```bash
 python examples/vuln_app.py        # terminal 1 - the target (127.0.0.1 only)
+summit map http://127.0.0.1:8765   # attack-surface map, no attack traffic
 summit scan http://127.0.0.1:8765  # terminal 2 - the scan
 ```
 
@@ -196,7 +197,8 @@ The demo seeds a *healthy* outbound link (`https://example.com`) as a negative c
 
 | Command | What it does |
 |---|---|
-| `summit scan <url>` | crawl, then passive + active checks, link health, WAF analysis. The 25 bundled YAML templates run by default; `--no-templates` skips them. `--openapi` scans a spec instead of crawling. `--auto-html` writes an HTML report automatically; `--render` adds headless-Chromium JS rendering (`pip install playwright`). |
+| `summit scan <url>` | crawl, then passive + active checks, link health, WAF analysis. The 37 bundled YAML templates run by default; `--no-templates` skips them. `--openapi` scans a spec instead of crawling. `--auto-html` writes an HTML report automatically; `--render` adds headless-Chromium JS rendering (`pip install playwright`). |
+| `summit map <url>` | crawl once and map pages, forms, technologies, outbound links and parameters without attack traffic. |
 | `summit authorize <url...>` | BOLA/IDOR testing: compare responses between two roles. |
 | `summit mine <url>` | hidden parameter discovery (~120 candidates, marker-based). |
 | `summit fuzz <url>` | directory brute force with wildcard-baseline filtering. |
@@ -208,11 +210,11 @@ The demo seeds a *healthy* outbound link (`https://example.com`) as a negative c
 | `summit race <url>` | fire a burst of concurrent requests to surface race windows. |
 | `summit diff <before.json> <after.json>` | compare two scan reports: new, resolved, regressed (`--fail-on` for CI). |
 | `summit oob` | out-of-band callback listener: HTTP callbacks plus a raw TCP JNDI channel; proves blind SSRF / Log4Shell / Shellshock / blind XXE with a real hit. |
-| `summit templates` | list or validate the 25 bundled YAML check templates. `--tags` / `--severity` narrow the list, `--json` emits machine-readable metadata. |
+| `summit templates` | list or validate the 37 bundled YAML check templates. `--tags` / `--severity` narrow the list, `--json` emits machine-readable metadata. |
 | `summit setup` | interactive setup wizard; saves defaults to `~/.summit/config.json`. |
 | `summit --check-update` / `--auto-update` / `--install-tools` | versioning and recon tool installer. |
 
-Shared flags on scanning commands: `--workers`, `--rate` (requests/second ceiling), `--retries` (with `Retry-After` support), `--timeout`, `--delay`. CI gates: `--fail-on high` exits 1 when a reported finding is at or above that severity; add `--baseline previous.json` and only new or regressed findings count.
+Shared flags on scanning commands: `--workers`, `--rate` (requests/second ceiling), `--retries` (with `Retry-After` support), `--timeout`, `--delay`, and `--progress` / `--no-progress` (live per-request log). CI gates: `--fail-on high` exits 1 when a reported finding is at or above that severity; add `--baseline previous.json` and only new or regressed findings count.
 
 ## Feature notes
 
@@ -222,13 +224,13 @@ Shared flags on scanning commands: `--workers`, `--rate` (requests/second ceilin
 
 **OpenAPI-driven scanning.** Every documented endpoint becomes a target, with path params filled from examples and defaults - no crawling, no guessing. Measured: the spec alone leads the engine to the seeded SQLi and XSS. JSON specs natively; YAML needs converting first (the dependency list stays at exactly one).
 
-**WAF detection and bypass.** Tight vendor signatures for Cloudflare, AWS WAF, Akamai, Imperva, ModSecurity, Sucuri, F5 and Wordfence. When a filter blocks standard payloads, tamper variants (single/double URL-encoding, comment splitting, case alternation) are tried - and a bypass is reported only when the original payload lands **decoded** in the response. Measured: raw payload -> HTTP 403; encoded once -> HTTP 200, decoded.
+**Attack surface map before any attack traffic.** `summit map URL` crawls the target once, then inventories pages, titles, forms, parameters, JS endpoints, outbound links, and technologies. It also lists the injection points the scanner would probe. No attack traffic, no templates, no exploitation - just a clean map you can hand to another engineer.
 
 **OS command injection, SSTI, CRLF, sensitive files, XPath, SSI.** Each ships with a hard confirmation rule: OS command injection uses an exec marker plus a control probe (a server that merely reflects input shows both markers; a server that executes shows the exec marker more often - measured `x2 vs x1`), SSTI requires `{{7*7}}` to come back as `49`, CRLF requires our injected header to materialize, sensitive files (`.env`, `.git/config`, cloud keys, Terraform state, dumps, backups) require a content signature - never just a 200, XPath requires a fresh XML parser error that the baseline did not contain, and SSI requires the `exec` marker to be printed **without** the raw directive (reflection alone never counts). Every finding is tagged with its CWE automatically (CWE-78, CWE-1336, CWE-113, CWE-538, CWE-643, CWE-96), and version banners are matched against an offline CVE database (spoofable banners stay `needs-manual`).
 
 **Log4Shell, Shellshock and blind XXE, proven out-of-band.** A response body cannot prove a blind injection. With `--oob-listen`, summit sprays JNDI lookups into logged headers (`User-Agent`, `X-Forwarded-For`, `Referer`), a Shellshock function definition into `User-Agent`, and external entities at XML endpoints. The listener accepts both HTTP callbacks and raw JNDI/LDAP binds, and a finding is written only when the unique token arrives. No callback, no finding.
 
-**YAML check templates, without leaving the CLI.** 25 Nuclei-style templates ship in the package and run by default: 18 new CVE/exposure checks (Apache 2.4.50 traversal, Flink, Grafana, Citrix, Pulse Secure, Fortinet SSL-VPN, F5 iControl, PHPUnit, PHP-CGI, Symfony profiler, Go pprof, Swagger UI, ASP.NET trace, ELMAH, Tomcat examples, phpMyAdmin setup, permissive crossdomain policy, WordPress XML-RPC) plus the core admin/actuator/Docker/Kubernetes/source-map/WP-JSON checks. The engine supports path lists, word/regex/status/DSL matchers, negative matchers, `stop-at-first-match`, `follow-redirects` and Nuclei placeholders. `--no-templates` skips them; `--templates FILE_OR_DIR` adds your own; `--template-tags`, `--template-exclude-tags` and `--template-severity` select a subset; `summit templates --json` inventories them.
+**YAML check templates, without leaving the CLI.** 37 Nuclei-style templates ship in the package and run by default: 18 new CVE/exposure checks (Apache 2.4.50 traversal, Flink, Grafana, Citrix, Pulse Secure, Fortinet SSL-VPN, F5 iControl, PHPUnit, PHP-CGI, Symfony profiler, Go pprof, Swagger UI, ASP.NET trace, ELMAH, Tomcat examples, phpMyAdmin setup, permissive crossdomain policy, WordPress XML-RPC) plus the core admin/actuator/Docker/Kubernetes/source-map/WP-JSON checks and v1.4 exposure checks for Git metadata, .env, AWS credentials, SSH keys, SQL backups, phpinfo, server-status, etcd, Consul, Docker registries, and Jupyter. The engine supports path lists, word/regex/status/DSL matchers, negative matchers, `stop-at-first-match`, `follow-redirects` and Nuclei placeholders. `--no-templates` skips them; `--templates FILE_OR_DIR` adds your own; `--template-tags`, `--template-exclude-tags` and `--template-severity` select a subset; `summit templates --json` inventories them.
 
 **CI gates that separate old noise from new risk.** `summit scan ... --fail-on high` exits 1 when any reported finding is high or critical. Add `--baseline previous.json` and the gate only counts findings that are new or have regressed since that report - the failure your pipeline actually needs to act on. Reports are still written before the gate runs, and an unreadable baseline exits 2 rather than silently passing. The gate is deterministic, uses the same dedup key as `summit diff`, and keeps the exit-code contract stable for CI.
 

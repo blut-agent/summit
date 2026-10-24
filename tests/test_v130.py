@@ -37,7 +37,7 @@ def _report(tmp_path: Path, findings: list[dict]) -> str:
 
 
 def test_version_is_1_3_0():
-    assert __version__ == "1.3.0"
+    assert __version__ == "1.5.0"
 
 
 def test_split_csv_is_tolerant():
@@ -47,7 +47,7 @@ def test_split_csv_is_tolerant():
 
 def test_template_tag_and_severity_filters():
     templates = load_templates(str(BUILTIN))
-    assert len(templates) == 25
+    assert len(templates) == 37
     for template in templates:
         assert _template_matches(template, {"cve"}, set(), set()) == ("cve" in template.tags)
         assert _template_matches(template, set(), {"lfi"}, set()) == ("lfi" not in template.tags)

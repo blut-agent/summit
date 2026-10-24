@@ -18,11 +18,12 @@ Crawls the target (same-host only), then runs passive checks on every page, acti
 | `--timeout S` / `--retries N` | per-request timeout; retries on connection errors and 429/503 with `Retry-After` support |
 | `--no-active` | passive only - zero attack traffic |
 | `--skip-linkcheck` | skip outbound-link health checks |
+| `--progress` / `--no-progress` | show the live per-request log (default: on in a terminal, off when piped) |
 | `--json` / `--html` | write reports |
 | `--auto-html` | write an HTML report automatically after the scan, into `summit-reports/` (`--no-auto-html` to disable) |
 | `--render` | render JavaScript pages with headless Chromium (needs `pip install playwright`) |
 | `--oob-listen PORT` | run the OOB listener (HTTP + raw JNDI TCP) and confirm blind SSRF / Log4Shell / Shellshock / blind XXE with real callbacks |
-| `--templates FILE_OR_DIR` | add YAML check templates to this scan (the 25 built-ins always run) |
+| `--templates FILE_OR_DIR` | add YAML check templates to this scan (the 37 built-ins always run) |
 | `--no-templates` | skip the bundled YAML templates for this run |
 | `--template-tags TAGS` | run only templates carrying any of these comma-separated tags, e.g. `cve,rce` |
 | `--template-exclude-tags TAGS` | skip templates carrying any of these tags, e.g. `dos,wordpress` |
@@ -111,7 +112,7 @@ A local listener with two channels: an HTTP listener for blind SSRF and blind XX
 ## templates - YAML check templates
 
 ```bash
-summit templates                                # list the 25 built-in templates
+summit templates                                # list the 37 built-in templates
 summit templates --tags cve --severity critical # filter the inventory
 summit templates --json                         # machine-readable metadata
 summit templates path/to/template.yaml          # validate one file or directory
@@ -120,7 +121,16 @@ summit scan https://target.local --no-templates
 summit scan https://target.local --template-tags cve --template-severity critical
 ```
 
-The 25 bundled templates run on every scan by default. Nuclei-style matchers (`word`, `regex`, `status`, `dsl`), path lists, negative matchers, `stop-at-first-match`, `follow-redirects` and `{{BaseURL}}` / `{{Host}}` / `{{Path}}` placeholders are supported; HIGH/CRITICAL templates must state a `confidence-rule` or they fail validation. `--template-tags`, `--template-exclude-tags` and `--template-severity` select a subset at scan time. `--templates` adds custom checks, `--no-templates` skips the bundle, and `summit setup --template-dir` persists a template directory as the default. In `summit templates`, filters apply to list mode; validate mode always checks every file it is given.
+The 37 bundled templates run on every scan by default. Nuclei-style matchers (`word`, `regex`, `status`, `dsl`), path lists, negative matchers, `stop-at-first-match`, `follow-redirects` and `{{BaseURL}}` / `{{Host}}` / `{{Path}}` placeholders are supported; HIGH/CRITICAL templates must state a `confidence-rule` or they fail validation. `--template-tags`, `--template-exclude-tags` and `--template-severity` select a subset at scan time. `--templates` adds custom checks, `--no-templates` skips the bundle, and `summit setup --template-dir` persists a template directory as the default. In `summit templates`, filters apply to list mode; validate mode always checks every file it is given.
+
+## map - inventory the attack surface
+
+```bash
+summit map http://target.local --depth 3 --max-pages 50
+summit map http://target.local --json surface.json --markdown surface.md --html surface.html
+```
+
+Crawl once, then inventory pages, titles, forms, parameters, outbound links, technologies and the injection points summit would probe. This is reconnaissance only - no attack traffic, no templates and no exploitation. Use it before `scan` when you want to understand the target or hand a clean surface map to another engineer.
 
 ## setup - persist your defaults
 

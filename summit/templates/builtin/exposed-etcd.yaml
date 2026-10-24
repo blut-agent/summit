@@ -1,0 +1,26 @@
+id: exposed-etcd
+info:
+  name: Exposed etcd API
+  severity: high
+  description: The etcd version endpoint is reachable without authentication and identifies a live cluster member.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 plus both the etcd server and cluster version fields'
+  classification:
+    cwe-id: CWE-306
+  impact: An unauthenticated etcd API can expose or modify service configuration and stored secrets.
+  remediation: Require client authentication and restrict the etcd API to the control plane network.
+  tags: [exposure, etcd, kubernetes]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/version'
+    matchers:
+      - type: word
+        part: body
+        words: ['"etcdserver"']
+      - type: word
+        part: body
+        words: ['"etcdcluster"']
+      - type: status
+        status: [200]
+    matchers-condition: and

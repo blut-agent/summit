@@ -1,0 +1,26 @@
+id: exposed-jupyter-api
+info:
+  name: Exposed Jupyter contents API
+  severity: high
+  description: The Jupyter contents API is reachable and lists a directory without authentication.
+  confidence: confirmed
+  confidence-rule: 'HTTP 200 plus a JSON contents listing with directory type and entry name'
+  classification:
+    cwe-id: CWE-306
+  impact: An unauthenticated notebook server can allow file reads, code execution, and credential theft.
+  remediation: Require a token or password, bind Jupyter to localhost, and place it behind an authenticated proxy.
+  tags: [exposure, jupyter, notebook]
+requests:
+  - method: GET
+    path:
+      - '{{BaseURL}}/api/contents'
+    matchers:
+      - type: word
+        part: body
+        words: ['"type": "directory"']
+      - type: word
+        part: body
+        words: ['"name"']
+      - type: status
+        status: [200]
+    matchers-condition: and

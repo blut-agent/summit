@@ -20,6 +20,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 from urllib.parse import urlsplit
 
 import yaml
@@ -34,6 +35,8 @@ _VALID_SEVERITIES = {"info", "low", "medium", "high", "critical"}
 _VALID_CONFIDENCES = {"confirmed", "likely", "needs-manual", "info"}
 _VALID_MATCHER_TYPES = {"word", "regex", "status", "dsl"}
 _VALID_PARTS = {"body", "header", "status"}
+_CWE_RE = re.compile(r"^CWE-\d+$")
+_CVE_RE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 
 _PLACEHOLDER_RE = re.compile(
     r"\{\{\s*(BaseURL|Hostname|Host|Port|Scheme|Path|File)\s*\}\}", re.IGNORECASE
@@ -128,6 +131,41 @@ def validate_template(path: str) -> list[str]:
                           "specify what makes a match confirmed vs needs-manual")
     if not template.requests:
         errors.append(f"{path}: no requests defined")
+
+    cwe = str(template.cwe or "").strip()
+    if not cwe:
+        errors.append(f"{path}: missing classification.cwe-id")
+    elif not _CWE_RE.match(cwe):
+        errors.append(f"{path}: invalid CWE id {cwe!r} (expected CWE-<number>)")
+
+    tags = {str(tag).lower() for tag in template.tags}
+    cves = [str(item).strip() for item in template.cve if str(item).strip()]
+    if "cve" in tags and not cves:
+        errors.append(f"{path}: tagged 'cve' but missing classification.cve-id")
+    if cves and "cve" not in tags:
+        errors.append(f"{path}: classification.cve-id set but 'cve' tag is missing")
+    seen_cves = set()
+    for cve in cves:
+        if not _CVE_RE.match(cve):
+            errors.append(f"{path}: invalid CVE id {cve!r} (expected CVE-YYYY-NNNN)")
+        if cve.upper() in seen_cves:
+            errors.append(f"{path}: duplicate CVE id {cve!r}")
+        seen_cves.add(cve.upper())
+
+    if template.confidence == "confirmed":
+        for i, req in enumerate(template.requests):
+            evidence = [
+                matcher for matcher in req.matchers
+                if not matcher.negative and (
+                    matcher.type in ("word", "regex")
+                    or (matcher.type == "dsl" and not matcher.dsl.strip().lower().startswith("status"))
+                )
+            ]
+            if not evidence:
+                errors.append(
+                    f"{path}: request[{i}] is confirmed but has no body/header evidence matcher "
+                    "(a status code alone is not proof)"
+                )
 
     for i, req in enumerate(template.requests):
         if not req.paths:
@@ -394,6 +432,7 @@ def run_template(
     client: HttpClient,
     target_url: str,
     baseline_response: HttpResponse | None = None,
+    on_request: Callable[[str, str], None] | None = None,
 ) -> list[Finding]:
     """Run a template against a target URL and return findings."""
     findings: list[Finding] = []
@@ -423,6 +462,8 @@ def run_template(
                 headers=headers,
                 body=body,
             )
+            if on_request is not None:
+                on_request(req_template.method, resolved_path)
             try:
                 response = client.send(request, allow_redirects=req_template.follow_redirects)
             except Exception:

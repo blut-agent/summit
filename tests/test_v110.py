@@ -581,7 +581,7 @@ def test_write_html_escapes_finding_content(tmp_path):
 def test_all_builtin_templates_validate_clean():
     builtin = Path(__file__).resolve().parent.parent / "summit" / "templates" / "builtin"
     templates = sorted(builtin.glob("*.yaml"))
-    assert len(templates) == 25
+    assert len(templates) == 37
     for template_file in templates:
         errors = validate_template(str(template_file))
         assert errors == [], f"{template_file.name}: {errors}"
