@@ -240,7 +240,7 @@ class ScanEngine:
                 host = origin.hostname or ""
                 takeover_step = bool(self.takeover and self._takeover_worthy(host))
                 oob_step = bool(self.oob_callback_base and self.oob_hit_checker is not None)
-                deep_steps = 6 + int(oob_step) + int(takeover_step)
+                deep_steps = 7 + int(oob_step) + int(takeover_step)
                 deep_before = len(self.findings)
                 if self.progress is not None:
                     self.progress.phase("DEEP", deep_steps)
@@ -260,6 +260,16 @@ class ScanEngine:
                         self.add(finding)
                 except Exception as exc:
                     self.errors.append(f"graphql check failed: {exc}")
+
+                from ..graphql import check_graphql_suggestions
+
+                if self.progress is not None:
+                    self.progress.task("graphql-suggestions", "POST", base)
+                try:
+                    for finding in check_graphql_suggestions(self.client, base):
+                        self.add(finding)
+                except Exception as exc:
+                    self.errors.append(f"graphql suggestions check failed: {exc}")
                 from .modules.csrf import check_csrf_forms
 
                 if self.progress is not None:

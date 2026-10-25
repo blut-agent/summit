@@ -28,7 +28,7 @@ No internet needed for the core demo. The target binds to 127.0.0.1 only.
 | CI gates | `--fail-on SEVERITY` and `--baseline previous.json` diff gating with stable 0/1/2 exit codes |
 | Link health | broken-link hijacking: dead domains, parked domains, private-range guard |
 | Attack surface | crawl once and inventory pages, forms, parameters, technologies and outbound links |
-| Fuzzing | directory brute force with wildcard-baseline false-positive filtering |
+| Fuzzing | directory brute force with wildcard-baseline filtering, plus Intruder-style payload fuzzing of raw `§position§` requests |
 | Proxy | intercepting HTTP proxy with a SQLite site map |
 | Recon | chains subfinder -> httpx -> nmap, with honest failure notes |
 | Toolkit | JWT / base64 / URL / hex encode & decode |

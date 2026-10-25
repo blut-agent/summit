@@ -13,6 +13,7 @@ Exit code 0 means every claim held. CI runs this on every push.
 from __future__ import annotations
 
 import sys
+import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -422,6 +423,56 @@ def main() -> int:
             dom is not None and dom.confidence == "needs-manual"
             and "location.hash" in dom.evidence and "innerHTML" in dom.evidence,
             f"{dom.evidence if dom else 'not found'} | {cwe_for('dom-xss')}",
+        )
+
+        # --- 25. Intruder-style payload fuzzing: the seeded discount code is
+        #         the control; every bogus code shifts the response from
+        #         HTTP 200 to HTTP 404. Divergence is reported needs-manual -
+        #         only a human can say what the difference means.
+        from summit.fuzz.intruder import findings_from as intruder_findings  # noqa: E402
+        from summit.fuzz.intruder import run_intruder  # noqa: E402
+        fuzz_raw = (
+            f"GET /api/discount?code=§SUMMIT10§ HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{PORT}\r\n"
+            "User-Agent: summit-evidence\r\n"
+            "\r\n"
+        )
+        intruder = run_intruder(client, fuzz_raw, payloads=["BOGUS1", "BOGUS2"])
+        divergent = [hit for hit in intruder.hits if hit.divergent]
+        fuzz_findings = intruder_findings(intruder)
+        claim(
+            "intruder-style fuzzing: bogus codes diverge from the control (200 -> 404)",
+            intruder.control is not None and intruder.control.status == 200
+            and len(divergent) == 2 and len(fuzz_findings) == 2,
+            f"control HTTP {intruder.control.status if intruder.control else '?'}; "
+            f"payloads {sorted(hit.payloads[0] for hit in divergent)} -> "
+            f"{sorted(hit.response.status for hit in divergent if hit.response)} (divergent); "
+            f"{len(fuzz_findings)} needs-manual finding(s)",
+        )
+
+        # --- 26. GraphQL field suggestions: an invalid field comes back with
+        #         "Did you mean" - schema names leak without introspection.
+        suggestions = next((f for f in findings if f.check_id == "graphql-field-suggestions"), None)
+        claim(
+            "GraphQL field suggestions leak schema names on an invalid field",
+            suggestions is not None and suggestions.confidence == "confirmed"
+            and "did you mean" in suggestions.evidence.lower(),
+            f"{suggestions.evidence if suggestions else 'not found'} | "
+            f"{cwe_for('graphql-field-suggestions') or 'CWE-200'}",
+        )
+
+        # --- 27. Markdown report: the same findings, rendered as the format
+        #         triage documents and pull-request comments speak.
+        from summit.report.writer import write_markdown  # noqa: E402
+        with tempfile.TemporaryDirectory() as md_dir:
+            md_path = write_markdown(findings, str(Path(md_dir) / "report.md"), BASE)
+            md_text = Path(md_path).read_text(encoding="utf-8")
+        sections = md_text.count("#### [")
+        claim(
+            "markdown report renders every finding for triage documents",
+            "## Findings" in md_text and "| Severity | Count |" in md_text
+            and sections == len(findings),
+            f"{sections}/{len(findings)} finding section(s) rendered, severity summary table present",
         )
     finally:
         server.shutdown()

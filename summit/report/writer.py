@@ -1,10 +1,11 @@
-"""Report writers - console, JSON, HTML.
+"""Report writers - console, JSON, HTML, Markdown.
 
-One sort order, three renderings. The console writer is the human
+One sort order, four renderings. The console writer is the human
 face of every scan: severity-grouped, colour-coded, and honest about
 confidence. The HTML writer is a self-contained dark-theme document
 with severity filters - no external assets, safe to email or attach
-to a ticket. JSON keeps the machine schema `diff.py` and CI depend on.
+to a ticket. Markdown is what triage documents and pull requests
+speak. JSON keeps the machine schema `diff.py` and CI depend on.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import html
 import json
 from collections import Counter
 from datetime import datetime, timezone
+from pathlib import Path
 
 from .. import __version__, colors
 from ..scan.core import CWE_BY_CHECK_ID, IMPACT_BY_CHECK_ID
@@ -262,4 +264,80 @@ def write_html(findings, path: str, target: str) -> str:
 """
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(document)
+    return path
+
+
+# ---------------------------------------------------------------------------
+# Markdown
+# ---------------------------------------------------------------------------
+
+
+def _md_cell(value: str) -> str:
+    """Keep user data from breaking the summary table layout."""
+    return value.replace("|", "\\|").replace("\n", " ")
+
+
+def write_markdown(findings, path: str, target: str) -> str:
+    """Render the report as Markdown - the format triage documents and
+    pull-request comments speak. Same sort order as console and HTML.
+    """
+    counts = Counter(f.severity for f in findings)
+    sorted_findings = sort_findings(findings)
+
+    lines: list[str] = []
+    lines.append(f"# Summit report - {target}")
+    lines.append("")
+    generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    lines.append(f"Generated: {generated} · Findings: {len(findings)} · summit {__version__}")
+    lines.append("")
+
+    lines.append("| Severity | Count |")
+    lines.append("|---|---|")
+    for severity in ("critical", "high", "medium", "low", "info"):
+        lines.append(f"| {severity} | {counts.get(severity, 0)} |")
+    lines.append("")
+
+    if not sorted_findings:
+        lines.append("No findings - the target looks clean for the checks that ran.")
+        lines.append("")
+        Path(path).write_text("\n".join(lines), encoding="utf-8")
+        return path
+
+    lines.append("## Findings")
+    lines.append("")
+    current_severity = None
+    for finding in sorted_findings:
+        if finding.severity != current_severity:
+            current_severity = finding.severity
+            lines.append(f"### {current_severity.upper()}")
+            lines.append("")
+        cwe = finding.cwe or CWE_BY_CHECK_ID.get(finding.check_id, "")
+        location = finding.url + (f" (param: {finding.param})" if finding.param else "")
+        lines.append(f"#### [{finding.severity.upper()}] {finding.title}")
+        lines.append("")
+        meta = [f"check: `{finding.check_id}`", f"confidence: `{finding.confidence}`"]
+        if cwe:
+            meta.append(f"CWE: `{cwe}`")
+        if finding.cves:
+            meta.append("CVEs: " + ", ".join(f"`{cve}`" for cve in finding.cves))
+        lines.append("- " + " · ".join(meta))
+        lines.append(f"- URL: {_md_cell(location)}")
+        if finding.detail:
+            lines.append(f"- Detail: {_md_cell(finding.detail)}")
+        if finding.evidence:
+            lines.append(f"- Evidence: `{_md_cell(finding.evidence)}`")
+        impact = finding.impact or IMPACT_BY_CHECK_ID.get(finding.check_id, "")
+        if impact:
+            lines.append(f"- Impact: {_md_cell(impact)}")
+        if finding.remediation:
+            lines.append(f"- Remediation: {_md_cell(finding.remediation)}")
+        if finding.poc:
+            lines.append(f"- PoC:\n\n    ```\n    {finding.poc}\n    ```")
+        lines.append("")
+
+    lines.append("---")
+    lines.append("")
+    lines.append("Only use Summit on systems you are authorized to test.")
+    lines.append("")
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
     return path

@@ -23,6 +23,8 @@ from .config import Settings, default_config_path, load_settings, resolve_paths,
 from .crawl.spider import Spider
 from .diff import diff_finding_lists, diff_reports, load_findings
 from .fuzz.dirbuster import fuzz
+from .fuzz.intruder import findings_from as intruder_findings_from
+from .fuzz.intruder import run_intruder
 from .http.client import HttpClient
 from .http.models import HttpRequest
 from .oob import OobServer
@@ -32,7 +34,7 @@ from .progress import ProgressReporter
 from .proxy.server import ProxyServer
 from .race import findings_from as race_findings_from, run_race_test
 from .recon import missing_tools, render_report, run_recon
-from .report.writer import write_console, write_html, write_json
+from .report.writer import write_console, write_html, write_json, write_markdown
 from .scan.core import SEVERITIES, SEVERITY_RANK, filter_by_min_severity, filter_by_severities
 from .scan.engine import ScanEngine
 from .scan.modules.ssrf import SsrfCheck
@@ -157,6 +159,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--html", dest="html_path", help="write an HTML report to this path")
     scan.add_argument("--sarif", dest="sarif_path", help="write a SARIF 2.1.0 report (GitHub code scanning compatible)")
     scan.add_argument("--junit", dest="junit_path", help="write a JUnit XML report (CI/CD pipeline compatible)")
+    scan.add_argument("--markdown", dest="markdown_path", help="write a Markdown report (triage documents, PR comments)")
     scan.add_argument("--severity", default=None, help="only report these severities, comma separated: high,critical")
     scan.add_argument("--min-severity", dest="min_severity", default=None,
                       choices=list(SEVERITIES), help="report findings at or above this severity")
@@ -223,11 +226,20 @@ def build_parser() -> argparse.ArgumentParser:
     auth.add_argument("--timeout", type=float, default=10.0)
     auth.add_argument("--json", dest="json_path", help="write findings as JSON")
 
-    fuzz_p = sub.add_parser("fuzz", help="brute-force paths on a target")
-    fuzz_p.add_argument("url")
-    fuzz_p.add_argument("-w", "--wordlist", help="wordlist file, one entry per line")
+    fuzz_p = sub.add_parser("fuzz", help="brute-force paths, or fuzz payload positions in a raw request")
+    fuzz_p.add_argument("url", nargs="?", help="target URL for directory mode")
+    fuzz_p.add_argument("-w", "--wordlist", help="wordlist file, one entry per line (directory mode)")
     fuzz_p.add_argument("-t", "--threads", type=int, default=10, help="concurrent requests (default 10)")
-    fuzz_p.add_argument("-e", "--extensions", default="", help="comma separated, e.g. php,html,bak")
+    fuzz_p.add_argument("-e", "--extensions", default="", help="comma separated, e.g. php,html,bak (directory mode)")
+    fuzz_p.add_argument("--request", dest="request_file",
+                        help="raw request file with §positions§ - Intruder-style payload fuzzing")
+    fuzz_p.add_argument("--payloads", default=None, help="payload list, comma separated (sniper mode)")
+    fuzz_p.add_argument("--payload-file", dest="payload_files", action="append", default=None,
+                        help="payload file, one entry per line; repeat - pitchfork mode pairs files with positions in order")
+    fuzz_p.add_argument("--mode", choices=["sniper", "pitchfork"], default="sniper",
+                        help="sniper: one position at a time (default); pitchfork: position i gets payload file i")
+    fuzz_p.add_argument("--encoder", choices=["none", "url", "b64"], default="none", help="payload encoder (default none)")
+    fuzz_p.add_argument("--json", dest="json_path", help="write fuzz results (requests + divergences) as JSON")
     fuzz_p.add_argument("--rate", type=float, default=None, help="max requests per second")
     fuzz_p.add_argument("--timeout", type=float, default=10.0)
 
@@ -625,6 +637,9 @@ def _cmd_scan(args: argparse.Namespace, settings: Settings) -> int:
 
             write_junit(findings, args.junit_path)
             _log("  " + colors.ok(f"JUnit XML report written to {args.junit_path}"))
+        if getattr(args, "markdown_path", None):
+            write_markdown(findings, args.markdown_path, target_label)
+            _log("  " + colors.ok(f"Markdown report written to {args.markdown_path}"))
         return _apply_ci_gate(findings, args)
     finally:
         if _PROGRESS is not None:
@@ -1127,15 +1142,114 @@ def _cmd_fuzz(args: argparse.Namespace) -> int:
     global _SILENT
     _SILENT = getattr(args, "silent", False)
     _banner(compact=True)
+    client = HttpClient(timeout=args.timeout, rate=args.rate)
+
+    if args.request_file or args.payloads or args.payload_files:
+        return _cmd_fuzz_intruder(args, client)
+
+    if not args.url:
+        print(colors.fail("fuzz needs a target URL (or --request FILE for payload fuzzing)"))
+        return 2
     wordlist = None
     if args.wordlist:
         wordlist = [line.strip() for line in Path(args.wordlist).read_text(encoding="utf-8").splitlines() if line.strip()]
     extensions = [ext.strip().lstrip(".") for ext in args.extensions.split(",") if ext.strip()]
-    client = HttpClient(timeout=args.timeout, rate=args.rate)
     started = time.monotonic()
     findings = fuzz(client, args.url, wordlist=wordlist, threads=args.threads, extensions=extensions)
     _log("  " + colors.ok(f"fuzz completed in {_fmt_duration(time.monotonic() - started)} - {len(findings)} path(s) found"))
     print(write_console(findings, args.url))
+    return 0
+
+
+def _load_payload_list(source: str) -> list[str]:
+    """A CSV list or a file path - one payload per line if the file exists."""
+    path = Path(source)
+    if path.exists():
+        return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [token for token in (item.strip() for item in source.split(",")) if token]
+
+
+def _cmd_fuzz_intruder(args: argparse.Namespace, client: HttpClient) -> int:
+    global _SILENT
+    if not args.request_file:
+        print(colors.fail("payload fuzzing needs a raw request file: --request FILE (mark spots with §positions§)"))
+        return 2
+    try:
+        raw = Path(args.request_file).read_text(encoding="utf-8")
+    except OSError as exc:
+        print(colors.fail(f"could not read request file: {exc}"))
+        return 2
+
+    try:
+        if args.mode == "pitchfork":
+            if not args.payload_files:
+                print(colors.fail("pitchfork mode needs one --payload-file per position, in order"))
+                return 2
+            payload_sets = [_load_payload_list(source) for source in args.payload_files]
+            result = run_intruder(
+                client, raw, payload_sets=payload_sets, mode="pitchfork",
+                encoder=args.encoder, threads=args.threads,
+            )
+        else:
+            payloads = _load_payload_list(args.payloads or "")
+            if not payloads and args.payload_files:
+                payloads = _load_payload_list(args.payload_files[0])
+            if not payloads:
+                print(colors.fail("no payloads given - use --payloads 'a,b,c' or --payload-file FILE"))
+                return 2
+            result = run_intruder(
+                client, raw, payloads=payloads, mode="sniper",
+                encoder=args.encoder, threads=args.threads,
+            )
+    except (OSError, ValueError) as exc:
+        print(colors.fail(str(exc)))
+        return 2
+
+    started_note = f"mode={args.mode}, encoder={args.encoder}, {len(result.hits)} request(s)"
+    _log("  " + colors.ok(f"payload fuzz completed - {started_note}"))
+    control = result.control
+    if control is not None:
+        print(f"  {colors.gray('control:')} HTTP {control.status} · {len(control.body)} bytes")
+    else:
+        print(colors.warn("  control request failed - every probe counts as divergent"))
+
+    divergent = 0
+    for hit in result.hits:
+        if hit.response is None:
+            marker = colors.fail("no response")
+        elif hit.divergent:
+            marker = colors.warn("DIVERGENT")
+            divergent += 1
+        else:
+            marker = colors.ok("matches control")
+        payload_text = ", ".join(hit.payloads) or "(empty)"
+        if hit.response is not None:
+            shape = f"HTTP {hit.response.status} · {len(hit.response.body)} bytes"
+        else:
+            shape = "unreachable"
+        print(f"  [{payload_text}] {shape} - {marker}")
+    print()
+    print(f"  {len(result.hits)} request(s), {colors.bold(str(divergent))} divergent from the control")
+
+    findings = intruder_findings_from(result)
+    if findings:
+        print(write_console(findings, args.request_file))
+    if args.json_path:
+        payload = {
+            "control": None if control is None else {"status": control.status, "bytes": len(control.body)},
+            "requests": [
+                {
+                    "payloads": list(hit.payloads),
+                    "status": None if hit.response is None else hit.response.status,
+                    "bytes": None if hit.response is None else len(hit.response.body),
+                    "divergent": hit.divergent,
+                    "url": hit.request.url,
+                }
+                for hit in result.hits
+            ],
+        }
+        Path(args.json_path).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        _log("  " + colors.ok(f"fuzz results written to {args.json_path}"))
     return 0
 
 

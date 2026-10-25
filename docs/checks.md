@@ -85,9 +85,11 @@ Every check states its **confirmation basis**. `confirmed` = an observed fact, `
 | Check | Severity | CWE | Confirmation basis |
 |---|---|---|---|
 | Directory fuzz | info | CWE-538 | status + wildcard baseline |
+| Payload divergence | low | CWE-200 | status/size shift vs the control request -> `needs-manual` |
 | Sensitive file exposure (.env, .git, backups) | high | CWE-538 | content signature, not just 200 -> `confirmed` |
 | Directory listing enabled | medium | CWE-548 | listing content signature -> `confirmed` |
 | GraphQL introspection enabled | low | CWE-200 | real `__schema` payload -> `confirmed` |
+| GraphQL field suggestions | low | CWE-200 | "Did you mean" on an invalid field -> `confirmed` |
 | Subdomain takeover via CNAME | critical | CWE-350 | CNAME + unclaimed service page -> `confirmed` |
 
 ## YAML templates

@@ -74,6 +74,16 @@ summit scan https://target.local --junit report.xml
 
 Critical and high findings are reported as `<error>` elements; lower severities as passing test cases with status attributes.
 
+## Markdown
+
+The format triage documents and pull-request comments speak:
+
+```bash
+summit scan https://target.local --markdown report.md
+```
+
+Severity summary table up top, then one section per finding with check, confidence, CWE, evidence, impact and remediation. Same sort order as console and HTML.
+
 ## Comparison
 
 | Format | Use case | Machine-readable | Severity tags | CWE/CVE |
@@ -81,5 +91,6 @@ Critical and high findings are reported as `<error>` elements; lower severities 
 | Console | Human review | no | severity headers | yes |
 | JSON | Scripting, automation | yes | severity field | yes |
 | HTML | Sharing, archiving | no | color-coded | yes |
+| Markdown | Triage docs, PR comments | no | severity headers | yes |
 | SARIF | GitHub Security tab | yes | SARIF level | yes |
 | JUnit XML | CI/CD pipeline | yes | error/info | CWE only |

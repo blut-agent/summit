@@ -50,6 +50,14 @@ summit fuzz https://testsite.local -w wordlist.txt -e php,bak -t 20
 
 Measures a wildcard baseline first (a random nonexistent path) and filters everything that answers identically - "everything returns 200" servers cannot flood the report.
 
+## fuzz - Intruder-style payload fuzzing
+
+```bash
+summit fuzz --request req.txt --payloads 'SUMMIT10,BOGUS1,BOGUS2' --json fuzz.json
+```
+
+Mark the spots worth varying in a raw request with `§positions§` (the Burp Intruder convention, so existing request files paste straight in). A control request built from the untouched originals is measured first; a response counts as divergent when its status or body size really moved from the control. Sniper mode varies one position at a time; `--mode pitchfork` pairs position i with the i-th `--payload-file`. Payloads can pass through `--encoder none|url|b64`. Divergences print per payload and are reported `needs-manual` - only a human can say what the difference means.
+
 ## proxy - local intercepting proxy
 
 ```bash

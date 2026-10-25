@@ -4,6 +4,39 @@ All notable changes to summit are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [v2.0.0] - 2026-10-25
+
+### Added
+
+- Intruder-style payload fuzzing: `summit fuzz --request FILE` runs a payload
+  list through `§positions§` in a raw request - the Burp convention, so
+  existing request files paste straight in. Sniper (one position at a time)
+  and pitchfork (position i paired with payload file i) modes, `none`/`url`/
+  `b64` encoders, and a control request measured first: a response only
+  becomes a finding when its status code or body size really moved from the
+  control, and divergences stay `needs-manual` for a human to judge. Results
+  print as a per-payload table and export with `--json`.
+- GraphQL field-suggestion check (CWE-200): a deliberately invalid field is
+  probed against the common GraphQL paths; servers that answer "Did you
+  mean ..." leak schema names one probe at a time even with introspection
+  disabled. Confirmed only on GraphQL-shaped validation errors - plain 404s
+  and non-GraphQL endpoints stay quiet.
+- Markdown reports: `scan --markdown report.md` renders the same
+  severity-grouped findings as a triage document - severity summary table,
+  per-finding sections with check, confidence, CWE, evidence, impact and
+  remediation.
+- Demo-target seeds for the new checks: `/api/discount?code=` (only valid
+  codes diverge - the fuzzer's showcase) and field suggestions on `/graphql`.
+- The evidence runner grew from 27 to 30 claims; the README example output
+  carries the v2.0.0 run.
+
+### Changed
+
+- `summit fuzz` now accepts two modes: a URL with a wordlist (unchanged) or
+  a raw request with payload positions (`--request`); the URL argument is
+  optional so `--request` can stand alone. Existing invocations keep working.
+
+
 ## [v1.5.0] - 2026-10-25
 
 ### Added

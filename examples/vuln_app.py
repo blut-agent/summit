@@ -32,6 +32,8 @@ Seeded vulnerabilities:
     - sensitive file      /.env            (200 with APP_KEY/DB_PASSWORD content)
     - time-based SQLi     /user?id=        (SLEEP marker pauses the handler 0.25s)
     - GraphQL leak        /graphql         (introspection enabled in production)
+    - GraphQL suggestions /graphql         (invalid fields leak schema names)
+    - fuzz seed           /api/discount?code= (only valid codes diverge)
     - client CVE leak     (page references jQuery 3.4.1 + WordPress 5.7.1 banners)
     - missing security headers + version disclosure on every response
     - SSRF (OOB)          /fetch?url=      (fetches loopback URLs only - proven via callback)
@@ -82,6 +84,7 @@ PAGE = """<!doctype html>
   <li><a href="/xml">xml</a></li>
   <li><a href="/dom">dom</a></li>
   <li><a href="/.env">env</a></li>
+  <li><a href="/api/discount?code=SUMMIT10">discount</a></li>
   <li><a href="/graphql">graphql</a></li>
   <li><a href="/register?email=demo@demo.local">register</a></li>
   <li><a href="/files/">files</a></li>
@@ -136,6 +139,18 @@ class DemoHandler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args) -> None:  # keep the demo output clean
         pass
+
+    def _graphql_suggestions(self) -> None:
+        body = json.dumps({"errors": [{
+            "message": "Cannot query field 'summitNoSuchFieldProbe' on type 'Query'. "
+                       "Did you mean 'summitSecretField' or 'summitAdminField'?",
+        }]})
+        data = body.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_GET(self) -> None:
         split = urlsplit(self.path)
@@ -321,8 +336,29 @@ class DemoHandler(BaseHTTPRequestHandler):
             )
             self._html(body)
 
+        elif path == "/api/discount":
+            # Seed for the Intruder-style fuzzer: the response only moves
+            # for codes that actually exist - exactly the divergence a
+            # payload run is looking for.
+            code = query.get("code", "")
+            if code == "SUMMIT10":
+                self._html(
+                    "<html><body><p>Discount applied: 10% off your order. "
+                    "Have a nice day.</p></body></html>"
+                )
+            else:
+                self._html(
+                    "<html><body><p>Invalid discount code.</p></body></html>",
+                    status=404,
+                )
+
         elif path == "/graphql":
-            # Vulnerable: introspection is enabled in production.
+            # Vulnerable: introspection is enabled in production. Invalid
+            # fields also get "Did you mean" suggestions back - the schema
+            # leaks even where introspection has been switched off.
+            if "summitNoSuchFieldProbe" in query.get("query", ""):
+                self._graphql_suggestions()
+                return
             body = json.dumps({
                 "data": {"__schema": {"queryType": {"name": "Query"}, "types": [
                     {"name": "Query"}, {"name": "User"}, {"name": "Secret"},
@@ -476,6 +512,24 @@ class DemoHandler(BaseHTTPRequestHandler):
             data = body.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/xml")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if split.path == "/graphql":
+            # Same leak over POST: an unknown field comes back with field
+            # suggestions, handing out real schema names.
+            try:
+                posted = json.loads(raw or "{}")
+            except ValueError:
+                posted = {}
+            if "summitNoSuchFieldProbe" in str(posted.get("query", "")):
+                self._graphql_suggestions()
+                return
+            body = json.dumps({"data": None})
+            data = body.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)

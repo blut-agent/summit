@@ -14,11 +14,11 @@
   <img src="https://img.shields.io/badge/dependencies-3%20FLOSS%20packages-8b949e" alt="three dependencies">
 </p>
 
-<p align="center">One scriptable CLI for web security testing: scanner, proxy, fuzzer, authorization testing, WAF analysis, link-hijack detection, race conditions and recon.<br>55+ checks across 11 families, plus 37 bundled YAML templates and a no-traffic attack-surface map. Free where the equivalents are paid - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
+<p align="center">One scriptable CLI for web security testing: scanner, proxy, fuzzer, authorization testing, WAF analysis, link-hijack detection, race conditions and recon.<br>57+ checks across 11 families, 37 bundled YAML templates, Intruder-style payload fuzzing and a no-traffic attack-surface map. Free where the equivalents are paid - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
 
 ---
 
-We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit now has 55+ checks across 11 families and a one-command attack-surface map. Summit is that tool - v1.5.0, MIT, built in the open. Three dependencies (`requests`, `pyyaml`, `packaging`), all FLOSS, all standard.
+We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit now has 57+ checks across 11 families, a one-command attack-surface map, and payload fuzzing that speaks the Intruder file format. Summit is that tool - v2.0.0, MIT, built in the open. Three dependencies (`requests`, `pyyaml`, `packaging`), all FLOSS, all standard.
 
 **Full documentation:** [pennacle-security.github.io/summit](https://pennacle-security.github.io/summit/)
 
@@ -51,6 +51,7 @@ Capabilities that usually sit behind paid tooling, plus the scanning core:
 | SQLi, XSS, redirect, traversal, takeover, host header, CORS | built in | core scanners (free) |
 | Recon chain: subfinder -> httpx -> nmap | `summit recon` | manual gluing |
 | Race condition detection | `summit race` | Burp Turbo Intruder (paid) |
+| Intruder-style payload fuzzing | `summit fuzz --request` | paid (Intruder) |
 | TLS certificate audit | `summit tls` | manual / sslscan |
 | Rate limiting, retries, JWT/encoder toolkit | built in | add-ons / paid |
 | CI-ready, confidence-labelled, CWE/CVE-tagged findings | the whole point | paid automation |
@@ -118,7 +119,7 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 
 ```text
 [PASS] full scan: 20 seeded check families detected, zero false positives
-       141 findings in 8.3s (1031 requests), missing=none, control link flagged=no, 48 finding(s) carry confidence=confirmed
+       147 findings in 7.4s (1093 requests), missing=none, control link flagged=no, 50 finding(s) carry confidence=confirmed
 [PASS] resource takeover fingerprint detected on the target's own 404
        Possible AWS S3 resource takeover | AWS S3: 'nosuchbucket'
 [PASS] host header injection: marker domain echoed back by the app
@@ -130,9 +131,9 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 [PASS] CAPTCHA challenge detected (reported, not solved)
        /login -> reCAPTCHA via marker 'recaptcha/api.js'
 [PASS] rate limiting: --rate 5 paces 12 requests to ~2.2s; unlimited runs free
-       12 requests at rate 5 -> 2.20s (theoretical floor: 2.2s); 12 requests unlimited -> 0.02s
+       12 requests at rate 5 -> 2.20s (theoretical floor: 2.2s); 12 requests unlimited -> 0.01s
 [PASS] concurrency on a latency-bearing target: 8 workers vs serial (best of 3)
-       40 requests x 25ms latency: serial 1.16s -> parallel 0.17s (6.9x speedup)
+       40 requests x 25ms latency: serial 1.49s -> parallel 0.17s (8.7x speedup)
 [PASS] smart prioritizer ranks known-injectable parameters first
        probing starts with: [('query', 'search?query=laptop'), ('id', 'user?id=1'), ('url', 'example.com')]
 [PASS] toolkit decodes JWT header/payload and states the signature is unverified
@@ -144,7 +145,7 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 [PASS] hidden parameter mining finds the undocumented debug parameter, zero noise
        1 finding(s): ['debug'] (all confirmed reflections)
 [PASS] openapi-driven scan: spec alone leads the engine to seeded SQLi and XSS
-       2 spec target(s) scanned -> 17 findings, sqli-error=yes, xss-reflection=yes
+       2 spec target(s) scanned -> 18 findings, sqli-error=yes, xss-reflection=yes
 [PASS] OS command injection: marker executed and echoed by the server
        semicolon: exec marker x2, control marker x1 | CWE-78
 [PASS] server-side template injection: {{7*7}} came back as 49
@@ -162,7 +163,7 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 [PASS] frontend CVE detection: jQuery 3.4.1 + WordPress 5.7.1 map to known CVEs
        ['CVE-2020-11023', 'CVE-2021-29447'] (body signatures: CVE-2020-11023, CVE-2021-29447 (3.4.1, 5.7.1))
 [PASS] SSRF confirmed out-of-band: the server fetched our callback URL
-       OOB hit received for token ssrfa07ddbd9ad91dbb5 after payload http://127.0.0.1:36683/ssrfa07ddbd9ad91dbb5; callback log: 21:54:00  GET    /ssrfa07ddbd9ad91dbb5  from 127.0.0.1  token=ssrfa07ddbd9ad91dbb5; redirector control: silent
+       OOB hit received for token ssrf576fba17a1fc84c7 after payload http://127.0.0.1:31135/ssrf576fba17a1fc84c7; callback log: 14:14:00  GET    /ssrf576fba17a1fc84c7  from 127.0.0.1  token=ssrf576fba17a1fc84c7; redirector control: silent
 [PASS] XXE: external entity resolved, local file content returned
        file content signature in response: 'root:x:0:0:' | CWE-611
 [PASS] TRACE enabled: probe marker header echoed back
@@ -171,8 +172,14 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
        AWS access key: AKIA4Q…XK3P | CWE-798
 [PASS] DOM XSS candidate: location.hash flows into innerHTML (needs manual)
        source→sink: location.hash → innerHTML | CWE-79
+[PASS] intruder-style fuzzing: bogus codes diverge from the control (200 -> 404)
+       control HTTP 200; payloads ['BOGUS1', 'BOGUS2'] -> [404, 404] (divergent); 2 needs-manual finding(s)
+[PASS] GraphQL field suggestions leak schema names on an invalid field
+       POST /graphql -> Cannot query field 'summitNoSuchFieldProbe' on type 'Query'. Did you mean 'summitSecretField' or 'summitAdminField'? | CWE-200
+[PASS] markdown report renders every finding for triage documents
+       147/147 finding section(s) rendered, severity summary table present
 
-evidence summary: 27/27 claims verified
+evidence summary: 30/30 claims verified
 ```
 
 </details>
@@ -197,11 +204,11 @@ The demo seeds a *healthy* outbound link (`https://example.com`) as a negative c
 
 | Command | What it does |
 |---|---|
-| `summit scan <url>` | crawl, then passive + active checks, link health, WAF analysis. The 37 bundled YAML templates run by default; `--no-templates` skips them. `--openapi` scans a spec instead of crawling. `--auto-html` writes an HTML report automatically; `--render` adds headless-Chromium JS rendering (`pip install playwright`). |
+| `summit scan <url>` | crawl, then passive + active checks, link health, WAF analysis. The 37 bundled YAML templates run by default; `--no-templates` skips them. `--openapi` scans a spec instead of crawling. `--auto-html` writes an HTML report automatically; `--markdown` renders a triage-friendly Markdown report; `--render` adds headless-Chromium JS rendering (`pip install playwright`). |
 | `summit map <url>` | crawl once and map pages, forms, technologies, outbound links and parameters without attack traffic. |
 | `summit authorize <url...>` | BOLA/IDOR testing: compare responses between two roles. |
 | `summit mine <url>` | hidden parameter discovery (~120 candidates, marker-based). |
-| `summit fuzz <url>` | directory brute force with wildcard-baseline filtering. |
+| `summit fuzz <url>` | directory brute force with wildcard-baseline filtering - or Intruder-style payload fuzzing: `fuzz --request req.txt --payloads 'a,b,c'` walks payloads through `§positions§` in a raw request (sniper/pitchfork, `none`/`url`/`b64` encoders, divergence judged against a control request). |
 | `summit recon <domain>` | chain subfinder -> httpx -> nmap into one report. |
 | `summit tls <host>` | certificate expiry / self-signed / legacy TLS version audit. |
 | `summit proxy` | intercepting HTTP proxy with a SQLite site map. |
@@ -225,6 +232,10 @@ Shared flags on scanning commands: `--workers`, `--rate` (requests/second ceilin
 **OpenAPI-driven scanning.** Every documented endpoint becomes a target, with path params filled from examples and defaults - no crawling, no guessing. Measured: the spec alone leads the engine to the seeded SQLi and XSS. JSON specs natively; YAML needs converting first (the dependency list stays at exactly one).
 
 **Attack surface map before any attack traffic.** `summit map URL` crawls the target once, then inventories pages, titles, forms, parameters, JS endpoints, outbound links, and technologies. It also lists the injection points the scanner would probe. No attack traffic, no templates, no exploitation - just a clean map you can hand to another engineer.
+
+**Payload fuzzing, Intruder-style.** Mark the spots worth varying in a raw request with `§positions§` - the same convention Burp uses, so request files paste straight in - and `summit fuzz --request req.txt --payloads 'a,b,c'` walks them. Sniper varies one position at a time; pitchfork pairs each position with its own payload file; payloads can pass through URL or base64 encoders. A control request is measured first, and a response only counts as a divergence when its status or body size really moved from that control - divergence is where hidden behavior lives (valid identifiers, debug flags, privilege boundaries), and it is always reported `needs-manual` for a human to judge. Results print per payload and export as JSON.
+
+**GraphQL leaks beyond introspection.** Servers that answer an invalid field with "Did you mean ..." hand out real schema names one probe at a time - even with introspection disabled. The check confirms only on GraphQL-shaped validation errors, so plain 404s and non-GraphQL endpoints stay quiet.
 
 **OS command injection, SSTI, CRLF, sensitive files, XPath, SSI.** Each ships with a hard confirmation rule: OS command injection uses an exec marker plus a control probe (a server that merely reflects input shows both markers; a server that executes shows the exec marker more often - measured `x2 vs x1`), SSTI requires `{{7*7}}` to come back as `49`, CRLF requires our injected header to materialize, sensitive files (`.env`, `.git/config`, cloud keys, Terraform state, dumps, backups) require a content signature - never just a 200, XPath requires a fresh XML parser error that the baseline did not contain, and SSI requires the `exec` marker to be printed **without** the raw directive (reflection alone never counts). Every finding is tagged with its CWE automatically (CWE-78, CWE-1336, CWE-113, CWE-538, CWE-643, CWE-96), and version banners are matched against an offline CVE database (spoofable banners stay `needs-manual`).
 
@@ -283,6 +294,7 @@ False positives waste your triage time. False negatives get clients breached. Su
 | SQL injection, boolean-based | active | medium | response divergence -> `likely` |
 | SQL injection, time-based blind | active | medium | calibrated delay reproduced on every probe -> `likely` |
 | GraphQL introspection enabled | passive-origin | low | real `__schema` payload -> `confirmed` |
+| GraphQL field suggestions (schema leak) | passive-origin | low | "Did you mean" on an invalid field -> `confirmed`, CWE-200 |
 | Reflected XSS | active | high | canary + raw payload reflection -> `confirmed` |
 | DOM XSS candidate (source->sink in inline JS) | active | low | `location.hash` flows into `innerHTML` -> `needs-manual`, CWE-79 |
 | WAF filter bypass | active | high | tampered payload lands decoded -> `confirmed` |
@@ -322,6 +334,7 @@ False positives waste your triage time. False negatives get clients breached. Su
 | TLS certificate expired / self-signed | tls | high-medium | certificate dates and issuer -> `confirmed` |
 | Legacy TLS versions accepted | tls | medium | handshake completed with TLSv1.0/1.1 -> `confirmed` |
 | Directory fuzz | fuzz | info | status + wildcard baseline |
+| Payload divergence (fuzzer) | fuzz | low | status/size shift vs the control request -> `needs-manual`, CWE-200 |
 
 ## How summit compares
 
@@ -342,6 +355,7 @@ False positives waste your triage time. False negatives get clients breached. Su
 | Codebase you can audit in an afternoon | ~7.5k lines | large | closed source |
 | TLS-intercepting proxy | on the roadmap | yes | yes |
 | Race condition detection | `summit race` | add-on | paid (Turbo Intruder) |
+| Intruder-style payload fuzzing | built in | add-on | paid (Intruder) |
 | TLS certificate audit | `summit tls` | add-on | built in |
 | SARIF output | built in | no | no |
 | Pre-built binaries per release | yes | no | no |
